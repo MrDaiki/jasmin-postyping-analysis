@@ -163,7 +163,9 @@ let rec reaching_definitions (rd:  Rd.t) (instrs:(int,'info,'asm) gstmt) : Rd.t 
       let rd_left = reaching_definitions rd b1 in
       let rd_right = reaching_definitions rd b2 in
       Rd.merge rd_left rd_right
-    | Cfor  (_,_,s) -> 
+    | Cfor  (vd,_,s) -> 
+      let cp = Set.singleton (L.unloc vd).v_id in
+      let rd = update_rd rd instr cp in
       stabilize rd s
     | Cwhile (_,b1,_,b2) -> 
       let rd = reaching_definitions rd b1 in 
