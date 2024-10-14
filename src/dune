@@ -1,0 +1,5 @@
+(executable
+ (name analysis)
+ (libraries jasmin.jasmin)
+ (flags :standard -rectypes)
+)

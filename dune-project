@@ -1,0 +1,5 @@
+(lang dune 2.9)
+(name jasmin-posttyping)
+(license MIT)
+(authors "The Jasmin development team")
+(using menhir 2.1)
