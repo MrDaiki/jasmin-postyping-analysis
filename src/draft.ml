@@ -1,11 +1,11 @@
 open Jasmin
 open Utils
 open Prog
+open Location
 
 module Instr = struct
-  type t = (unit, unit) instr
-
-  let compare x y = Stdlib.Int.compare x.i_loc.uid_loc y.i_loc.uid_loc
+  type t = i_loc
+  let compare x y = Stdlib.Int.compare x.uid_loc y.uid_loc
 end
 
 module Si = Set.Make (Instr)
@@ -18,6 +18,11 @@ module Domain = struct
   let add xs i = Sv.fold (fun x -> Mv.add x (Si.singleton i)) xs
   let join = Mv.union (fun _ a b -> Some (Si.union a b))
 
+  let contains i v dom: bool = 
+    match Mv.find_opt v dom with 
+    | None -> false
+    | Some s -> Si.mem i s
+
   let included (x : t) (y : t) =
     Mv.for_all (fun x s1 -> Si.subset s1 (Mv.find_default Si.empty x y)) x
 end
@@ -27,6 +32,11 @@ module Rd = struct
 
   let empty : t = Mi.empty
 
+  let contains (i : i_loc) (v : var) (rd:t) : bool=
+    match Mi.find_opt i rd with
+    | None -> false
+    | Some dom -> Domain.contains i v dom
+
   let included x y =
     Mi.for_all
       (fun i d1 ->
@@ -35,6 +45,7 @@ module Rd = struct
         | d2 -> Domain.included d1 d2)
       x
 
+  
   let join = Mi.union (fun _ a b -> Some (Domain.join a b))
 end
 
@@ -58,30 +69,34 @@ module Acc = struct
     fix start
 end
 
+type x = int gvar
 let written_lv s = function Lvar x -> Sv.add (L.unloc x) s | _ -> s
 
 let written_vars = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
-  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
+  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall ( xs, _, _) ->
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cfor _ | Cwhile _ -> assert false
 
 let rec rd_instr ((_, prev) as acc) i =
   let rd, out = rd_instr_r i acc i.i_desc in
-  (Mi.modify_def Domain.empty i (Domain.join prev) rd, out)
+  (Mi.modify_def Domain.empty i.i_loc (Domain.join prev) rd, out)
 
 and rd_instr_r i ((rd, prev) as acc) = function
   | Cif (_, th, el) -> Acc.join (rd_stmt acc th) (rd_stmt acc el)
   | Cfor ({ pl_desc = x; _ }, _, body) ->
-      let prev = Domain.add (Sv.singleton x) i prev in
+      let prev = Domain.add (Sv.singleton x) i.i_loc prev in
       Acc.loop (fun acc -> rd_stmt acc body) (rd, prev)
   | Cwhile (_, body1, _, body2) ->
       let acc = rd_stmt acc body1 in
       Acc.loop (fun acc -> rd_stmt acc (body2 @ body1)) acc
   | x ->
       let defs = written_vars x in
-      (rd, Domain.add defs i prev)
+      (rd, Domain.add defs i.i_loc prev)
 
 and rd_stmt acc = List.fold_left rd_instr acc
 
 let rd_fundef fd = rd_stmt Acc.empty fd.f_body
+
+
+let contains rd i v = Rd.contains i v rd
