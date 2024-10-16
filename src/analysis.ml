@@ -1,5 +1,6 @@
 
 open Jasmin
+open Ud_check
 open Rd_structured
 
 module Arch =
@@ -9,8 +10,6 @@ module Arch =
          (val CoreArchFactory.core_arch_x86 ~use_lea ~use_set0 call_conv)
        in
        (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch))
-
-
   
 let () = 
   try 
