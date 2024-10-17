@@ -24,7 +24,7 @@ let rs_uderror ~loc (code:ud_error) =
   raise (uderror ~loc code)
 
 
-let check_ud_var (dom:Domain.t) (instr:L.i_loc) (modified_local_var: var): unit =
+let check_ud_var (dom:Domain.t) (_:L.i_loc) (modified_local_var: var): unit =
   match Mv.find_opt modified_local_var dom with 
   | None -> assert false (*TODO : handle error here*)
   | Some iset -> 
