@@ -62,7 +62,7 @@ let written_lv s = function Lvar x -> Sv.add (L.unloc x) s | _ -> s
 
 let written_vars = function
   | Cassgn (x, _, _, _) -> written_lv Sv.empty x
-  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (_, xs, _, _) ->
+  | Copn (xs, _, _, _) | Csyscall (xs, _, _) | Ccall (xs, _, _) ->
       List.fold_left written_lv Sv.empty xs
   | Cif _ | Cfor _ | Cwhile _ -> assert false
 

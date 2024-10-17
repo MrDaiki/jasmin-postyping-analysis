@@ -64,8 +64,8 @@ and rd_instr_r loc prev = function
       (Domain.add (written_lvs xs) loc prev, Copn (xs, tg, op, es))
   | Csyscall (xs, op, es) ->
       (Domain.add (written_lvs xs) loc prev, Csyscall (xs, op, es))
-  | Ccall (ii, xs, fn, es) ->
-      (Domain.add (written_lvs xs) loc prev, Ccall (ii, xs, fn, es))
+  | Ccall (xs, fn, es) ->
+      (Domain.add (written_lvs xs) loc prev, Ccall (xs, fn, es))
 
 and rd_stmt acc = List.fold_left_map rd_instr acc
 
