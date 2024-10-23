@@ -1,0 +1,19 @@
+
+
+
+inline fn test(inline u64 test) -> inline u64 {
+    inline u64[4] x; 
+    inline u64[4] y;
+    y = #randombytes(x);
+
+    inline u64 i;
+    i = y[0];
+    return i;
+}
+
+
+fn test2() {
+    reg u64 x;
+    inline u64 y;
+    y=test(x);
+}
