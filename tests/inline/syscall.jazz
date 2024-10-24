@@ -1,0 +1,8 @@
+
+
+fn test() {
+    inline u64[4] t;
+    reg u64[4] y;
+    t=#randombytes(y);
+
+}

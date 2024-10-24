@@ -1,0 +1,6 @@
+fn test() {
+    inline u64[5] t;
+    reg u64 y;
+
+    y = t[y+y];
+}

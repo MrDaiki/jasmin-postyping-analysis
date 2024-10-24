@@ -1,6 +1,7 @@
 
 open Jasmin
-open Rd_structured
+(* open Rd_structured *)
+open Iv_check
 
 module Arch =
   (val let use_set0 = true and use_lea = false in
@@ -19,7 +20,7 @@ let () =
     |> fst 
     |> Pretyping.Env.decls 
     |> Compile.preprocess Arch.reg_size Arch.asmOp 
-    |> rd_prog
+    |> iv_prog
     |> ignore
   with 
   | Pretyping.TyError (loc, e) ->
@@ -31,3 +32,6 @@ let () =
   | Invalid_argument _ ->
       Format.eprintf "usage: %s FILE" Sys.argv.(0);
       exit 4
+  | Iv_check.IVError (loc, e) ->
+      Format.eprintf "%a: %a@." Location.pp_loc loc (Iv_check.pp_iverror) e;
+      exit 5

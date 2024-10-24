@@ -1,0 +1,14 @@
+
+
+
+inline fn sub (inline u64 i)-> reg u64 {
+    reg u64 x;
+    x=i;
+    return x;
+} 
+
+
+fn test () {
+    reg u64 y;
+    y=sub(y);
+}

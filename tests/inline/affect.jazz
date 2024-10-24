@@ -1,0 +1,8 @@
+
+
+
+fn test() {
+    inline u64 t;
+    reg u64 y;
+    t=y;
+}
