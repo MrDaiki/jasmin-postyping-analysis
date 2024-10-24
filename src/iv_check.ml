@@ -3,8 +3,6 @@ open Jasmin
 open Prog
 open Utils
 open Syscall_t
-open Sgv 
-
 let name_of_syscall sc = 
   match sc with 
   | RandomBytes _ -> "randombytes"
