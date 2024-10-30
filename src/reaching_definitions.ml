@@ -32,8 +32,6 @@ module Rdmutator : Statemutator = struct
   type state = Domain.t
   type annotation = Domain.t
 
-  let stabilize = true
-  let reverse = false
 
   let loop_stop_condition prev state = Domain.included state prev
 

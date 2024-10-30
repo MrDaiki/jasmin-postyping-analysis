@@ -7,8 +7,6 @@ module type Statemutator = sig
   type state 
   type annotation
 
-  val stabilize : bool 
-  val reverse : bool
   val loop_stop_condition : state -> state -> bool
 
   val cif : ('len gexpr) -> L.i_loc -> state -> state -> state * annotation
@@ -33,12 +31,12 @@ module TreeWalker (Mutator : Statemutator) = struct
     state,{ instr with i_desc=out; i_info=annot}
   
 
-  and walk_while_rev al body1 e body2 loc prev = 
-    let state, _ = walk_stmt body2 prev in
-    if Mutator.stabilize then 
+
+  and walk_while al body1 e body2 loc prev = 
+    let state, _ = walk_stmt body1 prev in
       let rec loop prev = 
-        let state, body1 = walk_stmt body1 prev in
-        let state, body2 = walk_stmt body2 state in
+        let state, body2 = walk_stmt body2 prev in
+        let state, body1 = walk_stmt body1 state in
         let state, annot = Mutator.cwhile al e loc prev state in
         if Mutator.loop_stop_condition prev state then 
           Cwhile(al,body1,e,body2),state, annot
@@ -46,73 +44,19 @@ module TreeWalker (Mutator : Statemutator) = struct
           loop state
       in 
       loop state
-    else 
-      let state, body2 = walk_stmt body2 state in
-      let state, body1 = walk_stmt body1 state in
-      let state, annot = Mutator.cwhile al e loc prev state in
-      Cwhile(al,body1,e,body2),state, annot
 
-
-  and walk_while al body1 e body2 loc prev = 
-    if Mutator.reverse then 
-      walk_while_rev al body1 e body2 loc prev
-    else
-      let state, _ = walk_stmt body1 prev in
-      if Mutator.stabilize then 
-        let rec loop prev = 
-          let state, body2 = walk_stmt body2 prev in
-          let state, body1 = walk_stmt body1 state in
-          let state, annot = Mutator.cwhile al e loc prev state in
-          if Mutator.loop_stop_condition prev state then 
-            Cwhile(al,body1,e,body2),state, annot
-          else 
-            loop state
-        in 
-        loop state
-      else 
-        let state, body1 = walk_stmt body1 state in
-        let state, body2 = walk_stmt body2 state in
-        let state, annot = Mutator.cwhile al e loc prev state in
-        Cwhile(al,body1,e,body2),state, annot
-  
-  and walk_for_rev x gr body loc prev = 
-    if Mutator.stabilize then 
-      let rec loop prev = 
-        let state,body = walk_stmt body prev in
-        let state = Mutator.cfor_decl x gr loc state in
-        let state, annot = Mutator.cfor x gr loc prev state in
-        if Mutator.loop_stop_condition prev state then 
-          Cfor(x,gr,body),state, annot
-        else 
-          loop state
-        in 
-        loop prev
-    else
-      let state,body = walk_stmt body prev in
-      let state = Mutator.cfor_decl x gr loc state in
-      let state, annot = Mutator.cfor x gr loc prev state in
-      Cfor(x,gr,body),state, annot
 
   and walk_for x gr body loc prev = 
-    if Mutator.reverse then 
-      walk_for_rev x gr body loc prev
-  else 
-    if Mutator.stabilize then 
-      let rec loop prev = 
-        let state = Mutator.cfor_decl x gr loc prev in
-        let state,body = walk_stmt body state in
-        let state, annot = Mutator.cfor x gr loc prev state in
-        if Mutator.loop_stop_condition prev state then 
-          Cfor(x,gr,body),state, annot
-        else 
-          loop state
-        in 
-        loop prev
-    else
+    let rec loop prev = 
       let state = Mutator.cfor_decl x gr loc prev in
       let state,body = walk_stmt body state in
       let state, annot = Mutator.cfor x gr loc prev state in
-      Cfor(x,gr,body),state, annot
+      if Mutator.loop_stop_condition prev state then 
+        Cfor(x,gr,body),state, annot
+      else 
+        loop state
+      in 
+      loop prev
 
   and walk_instr_r (instr: ('len,'info,'asm) ginstr_r) (loc:L.i_loc) (state : Mutator.state) : (int, Mutator.annotation, 'asm) ginstr_r * Mutator.state * Mutator.annotation = 
     match instr with 
@@ -140,7 +84,6 @@ module TreeWalker (Mutator : Statemutator) = struct
       
   
   and walk_stmt (stmt: ('len,'info,'asm) gstmt) (state:Mutator.state) = 
-    let stmt = if Mutator.reverse then List.rev stmt else stmt in
     List.fold_left_map walk_instr state stmt
     
 end 
