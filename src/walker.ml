@@ -85,5 +85,9 @@ module TreeWalker (Mutator : Statemutator) = struct
   
   and walk_stmt (stmt: ('len,'info,'asm) gstmt) (state:Mutator.state) = 
     List.fold_left_map walk_instr state stmt
+
+  let walk_func (f: ('info,'asm) func) (state:Mutator.state) = 
+    let state, body = walk_stmt f.f_body state in
+    { f with f_body = body }, state
     
 end 

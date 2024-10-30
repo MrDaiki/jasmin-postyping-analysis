@@ -265,7 +265,7 @@ let rec iv_instr (function_env) (instr) : resolution =
     let b1_res = iv_stmt function_env b1 in
     let b2_res = iv_stmt function_env b2 in 
     if c_res > b1_res || c_res > b2_res then 
-      assert false (*Error : if one of  the bloc is static, then the condition and the other bloc must also be static*)
+      assert false (*Error : if one of  the bloc is static, then the condition must also be static*)
     else 
     min_resolution b1_res b2_res
   | Cfor (v,(_,rl,rr),b) -> 

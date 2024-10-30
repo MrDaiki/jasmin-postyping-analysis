@@ -67,3 +67,6 @@ module Rdmutator : Statemutator = struct
     state,state
 
 end
+
+
+module RdWalker = TreeWalker(Rdmutator)
