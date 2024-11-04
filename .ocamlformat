@@ -21,9 +21,9 @@ module-item-spacing=sparse
 let-module=sparse
 
 break-fun-sig=smart
-break-struct=force
+break-struct=natural
 if-then-else=vertical
-margin=120
+margin=100
 function-indent-nested=always
 break-fun-decl=fit-or-vertical
 break-cases=all
