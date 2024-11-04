@@ -2,11 +2,16 @@ open Jasmin
 
 (* open Rd_structured *)
 open Staticvars.Mutator
+open Mutability.Mutator
+
+let check prog = iv_prog prog ; md_prog prog
 
 module Arch =
   ( val let use_set0 = true and use_lea = false in
         let call_conv = Glob_options.Linux in
-        let module C : Arch_full.Core_arch = (val CoreArchFactory.core_arch_x86 ~use_lea ~use_set0 call_conv) in
+        let module C : Arch_full.Core_arch =
+          (val CoreArchFactory.core_arch_x86 ~use_lea ~use_set0 call_conv)
+        in
         (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch) )
 
 let () =
@@ -15,7 +20,7 @@ let () =
       |> Pretyping.tt_file Arch.arch_info Pretyping.Env.empty None None
       |> fst |> Pretyping.Env.decls
       |> Compile.preprocess Arch.reg_size Arch.asmOp
-      |> iv_prog |> ignore
+      |> check |> ignore
     with
         | Pretyping.TyError (loc, e) ->
             Format.eprintf "%a: %a@." Location.pp_loc loc Pretyping.pp_tyerror e ;
@@ -29,3 +34,6 @@ let () =
         | Staticvars.Error.IVError (loc, e) ->
             Format.eprintf "%a: %a@." Location.pp_loc loc Staticvars.Error.pp_iverror e ;
             exit 5
+        | Mutability.Error.MdError (loc, e) ->
+            Format.eprintf "%a: %a@." Location.pp_loc loc Mutability.Error.pp_mderror e ;
+            exit 6
