@@ -1,0 +1,31 @@
+profile = ocamlformat
+version = 0.26.2
+
+
+cases-exp-indent=4
+extension-indent=4
+function-indent=4
+let-binding-indent=4
+match-indent=4
+cases-exp-indent=4
+type-decl-indent=4
+stritem-extension-indent=4
+indent-after-in=0
+cases-matching-exp-indent=normal
+
+
+type-decl=sparse
+type-decl-indent=0
+
+module-item-spacing=sparse
+let-module=sparse
+
+break-fun-sig=smart
+break-struct=force
+if-then-else=vertical
+margin=120
+function-indent-nested=always
+break-fun-decl=fit-or-vertical
+break-cases=all
+if-then-else=vertical
+nested-match=align

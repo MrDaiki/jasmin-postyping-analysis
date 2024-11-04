@@ -1,5 +1,6 @@
 (executable
  (name analysis)
  (libraries jasmin.jasmin)
- (flags :standard -rectypes)
-)
+ (flags :standard -rectypes))
+
+(include_subdirs qualified)
