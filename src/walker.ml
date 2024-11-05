@@ -17,14 +17,27 @@ module type Statemutator = sig
 
   val cwhile : E.align -> int gexpr -> L.i_loc -> state -> state -> state * annotation
 
-  val cassign : int glval -> E.assgn_tag -> int gty -> int gexpr -> L.i_loc -> state -> state * annotation
+  val cassign :
+    int glval -> E.assgn_tag -> int gty -> int gexpr -> L.i_loc -> state -> state * annotation
 
   val fcall : int glvals -> funname -> int gexprs -> L.i_loc -> state -> state * annotation
 
   val syscall :
-    int glvals -> BinNums.positive Syscall_t.syscall_t -> int gexprs -> L.i_loc -> state -> state * annotation
+       int glvals
+    -> BinNums.positive Syscall_t.syscall_t
+    -> int gexprs
+    -> L.i_loc
+    -> state
+    -> state * annotation
 
-  val copn : int glval list -> E.assgn_tag -> 'asm Sopn.sopn -> int gexprs -> L.i_loc -> state -> state * annotation
+  val copn :
+       int glval list
+    -> E.assgn_tag
+    -> 'asm Sopn.sopn
+    -> int gexprs
+    -> L.i_loc
+    -> state
+    -> state * annotation
 end
 
 (*
@@ -84,7 +97,8 @@ module TreeWalker (Mutator : Statemutator) = struct
       | Cfor (x, gr, body) -> walk_for x gr body loc state
       | Cwhile (al, body1, e, body2) -> walk_while al body1 e body2 loc state
 
-  and walk_stmt (stmt : (int, 'info, 'asm) gstmt) (state : Mutator.state) = List.fold_left_map walk_instr state stmt
+  and walk_stmt (stmt : (int, 'info, 'asm) gstmt) (state : Mutator.state) =
+      List.fold_left_map walk_instr state stmt
 
   let walk_func (f : ('info, 'asm) func) (state : Mutator.state) =
       let state, body = walk_stmt f.f_body state in

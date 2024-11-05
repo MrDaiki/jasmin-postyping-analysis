@@ -10,7 +10,8 @@ module Rd = struct
 
   let empty = {rd_in= Map.empty; rd_out= Map.empty; prev_out= Map.empty}
 
-  let merge_rd_maps (m1 : (uid, int Set.t) Map.t) (m2 : (uid, int Set.t) Map.t) : (uid, 'info Set.t) Map.t =
+  let merge_rd_maps (m1 : (uid, int Set.t) Map.t) (m2 : (uid, int Set.t) Map.t) :
+      (uid, 'info Set.t) Map.t =
       let var_set = Map.foldi (fun k _ s -> Set.add k s) m1 Set.empty in
       let var_set = Map.foldi (fun k _ s -> Set.add k s) m2 var_set in
       Set.fold
@@ -20,8 +21,9 @@ module Rd = struct
           Map.add v (Set.union m1_in m2_in) m )
         var_set Map.empty
 
-  let merge_rd (rd1 : ('info, (uid, 'info Set.t) Map.t) Map.t) (rd2 : ('info, (uid, 'info Set.t) Map.t) Map.t) :
-      ('info, (uid, 'info Set.t) Map.t) Map.t =
+  let merge_rd
+      (rd1 : ('info, (uid, 'info Set.t) Map.t) Map.t)
+      (rd2 : ('info, (uid, 'info Set.t) Map.t) Map.t) : ('info, (uid, 'info Set.t) Map.t) Map.t =
       let instrs_set = Map.foldi (fun k _ s -> Set.add k s) rd1 Set.empty in
       let instrs_set = Map.foldi (fun k _ s -> Set.add k s) rd2 instrs_set in
       Set.fold
@@ -38,7 +40,8 @@ module Rd = struct
       let prev_out = merge_rd_maps rd1.prev_out rd2.prev_out in
       {rd_in; rd_out; prev_out}
 
-  let cmp_rd_var (rd1_vars : (uid, 'info Set.t) Map.t) (rd2_vars : (uid, 'info Set.t) Map.t) : bool =
+  let cmp_rd_var (rd1_vars : (uid, 'info Set.t) Map.t) (rd2_vars : (uid, 'info Set.t) Map.t) : bool
+      =
       let rec compare_values values =
           match values with
           | [] -> true
@@ -57,7 +60,9 @@ module Rd = struct
           let keys = Map.foldi (fun k _ l -> k :: l) rd1_vars [] in
           compare_values keys
 
-  let cmp_rd (rd1 : ('info, (uid, 'info Set.t) Map.t) Map.t) (rd2 : ('info, (uid, 'info Set.t) Map.t) Map.t) : bool =
+  let cmp_rd
+      (rd1 : ('info, (uid, 'info Set.t) Map.t) Map.t)
+      (rd2 : ('info, (uid, 'info Set.t) Map.t) Map.t) : bool =
       let rec compare_values values =
           match values with
           | [] -> true
@@ -99,7 +104,8 @@ let computed_vars (lvs : int glvals) : uid Set.t =
         | Lasub (_, _, _, gv, _) -> Set.add (L.unloc gv).v_id s )
       Set.empty lvs
 
-let compute_instr_rd (prev : (uid, 'info Set.t) Map.t) (instr : int) (vars : uid Set.t) : (uid, 'info Set.t) Map.t =
+let compute_instr_rd (prev : (uid, 'info Set.t) Map.t) (instr : int) (vars : uid Set.t) :
+    (uid, 'info Set.t) Map.t =
     Set.fold
       (fun v m ->
         let new_instr_set = Set.add instr Set.empty in

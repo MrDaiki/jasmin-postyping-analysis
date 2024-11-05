@@ -108,7 +108,8 @@ let expr_dynamic_vars expr : 'len gvar_i list =
         | Papp1 (_, e) -> sub_dynamics e
         | Papp2 (_, e1, e2) -> Sgv.union (sub_dynamics e1) (sub_dynamics e2)
         | PappN (_, es) -> List.fold (fun s e -> Sgv.union s (sub_dynamics e)) Sgv.empty es
-        | Pif (_, e1, e2, e3) -> Sgv.union (sub_dynamics e1) (Sgv.union (sub_dynamics e2) (sub_dynamics e3))
+        | Pif (_, e1, e2, e3) ->
+            Sgv.union (sub_dynamics e1) (Sgv.union (sub_dynamics e2) (sub_dynamics e3))
     in
     Sgv.to_list (sub_dynamics expr)
 
@@ -128,7 +129,8 @@ let rec expr_resolution (expr : expr) : resolution =
         let e2_res = expr_resolution e2 in
         sup_resolution [e1_res; e2_res]
     | PappN (_, es) -> sup_resolution (List.map expr_resolution es)
-    | Pif (_, e1, e2, e3) -> sup_resolution [expr_resolution e1; expr_resolution e2; expr_resolution e3]
+    | Pif (_, e1, e2, e3) ->
+        sup_resolution [expr_resolution e1; expr_resolution e2; expr_resolution e3]
 
 and array_resolution_coherence var expr =
     let var_res = gvar_resolution var in
