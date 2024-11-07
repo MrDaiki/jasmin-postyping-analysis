@@ -18,24 +18,10 @@ For more informations, check [nix](https://nixos.org/)
 
 - [ ] Dead code 
   - [ ] Variable liveness
-  - [ ] Never called functions 
+  - [x] Never called functions 
   - [ ] Function with no effect or return values 
-  - [ ] Empty domains loops 
+  - [ ] Empty domain loops
 - [x] Uninitialised variables 
 - [x] Inline (static) variables depending on dynamic values 
 - [x] Mutability of non `mut` array pointers 
-
-Pour détecter des étourderies (warning)
-- Fonctions sans effet ni valeur de retour
-- Fonctions jamais appelées
-- Code mort
-- variables non-initialisées
-- constantes tronquées
-- domaine vide des boucles =for=
-Pour garantir que la compilation réussisse (erreur)
-- Valeurs =inline= qui dépendent de valeurs =reg= / =stack=
-- https://github.com/jasmin-lang/jasmin/issues/828
-Après la vérification de type
-- https://github.com/jasmin-lang/jasmin/issues/727
-- https://github.com/jasmin-lang/jasmin/issues/854
 
