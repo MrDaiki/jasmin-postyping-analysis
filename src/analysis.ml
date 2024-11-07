@@ -4,8 +4,9 @@ open Jasmin
 open Staticvars.Mutator
 open Mutability.Mutator
 open Initvars.Check
+open Functioncalls.Mutator
 
-let check prog = iv_prog prog ; md_prog prog ; ud_prog prog
+let check prog = iv_prog prog ; md_prog prog ; ud_prog prog ; fc_prog prog
 
 module Arch =
   ( val let use_set0 = true and use_lea = false in
