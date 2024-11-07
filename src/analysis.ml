@@ -3,8 +3,9 @@ open Jasmin
 (* open Rd_structured *)
 open Staticvars.Mutator
 open Mutability.Mutator
+open Initvars.Check
 
-let check prog = iv_prog prog ; md_prog prog
+let check prog = iv_prog prog ; md_prog prog ; ud_prog prog
 
 module Arch =
   ( val let use_set0 = true and use_lea = false in
