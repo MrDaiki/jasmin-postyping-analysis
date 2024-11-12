@@ -7,7 +7,9 @@ module type SimpleMutator = sig
 
   val loop_stop_condition : state -> state -> bool
 
-  val cif : int gexpr -> L.i_loc -> state -> state -> state
+  val cmerge : L.i_loc -> state -> state -> state
+
+  val cassume : L.i_loc -> int gexpr -> state -> state
 
   val cloop : int gexpr -> L.i_loc -> state -> state -> state
 
@@ -77,7 +79,8 @@ module SimpleWalker (Mutator : SimpleMutator) = struct
       let rec loop prev =
           let _, body2, state = walk_loop_body [] body prev in
           let _, state = walk_assign (Lvar x) AT_none (L.unloc x).v_ty incr_exp loc state in
-          let state = Mutator.cloop cmp_exp loc prev state in
+          let state = Mutator.cassume loc cmp_exp state in
+          let state = Mutator.cmerge loc prev state in
           if Mutator.loop_stop_condition prev state then
             (Cfor (x, (direction, gstart, gend), body2), state)
           else
@@ -99,9 +102,10 @@ module SimpleWalker (Mutator : SimpleMutator) = struct
           let state = Mutator.copn lvs tag sopn exprs loc state in
           (Copn (lvs, tag, sopn, exprs), state)
       | Cif (e, th, el) ->
+          let state = Mutator.cassume loc e state in
           let s1, th = walk_stmt th state in
           let s2, el = walk_stmt el state in
-          let state = Mutator.cif e loc s1 s2 in
+          let state = Mutator.cmerge loc s1 s2 in
           (Cif (e, th, el), state)
       | Cfor (x, gr, body) -> walk_for x gr body loc state
       | Cwhile (al, body1, e, body2) -> walk_while al body1 e body2 loc state
