@@ -1,0 +1,13 @@
+
+
+fn test2 (reg u64 t ) {
+}
+
+fn test() {
+    reg u64 t;
+    test2(t);
+    while (t < 10) {
+        t = t + 1;
+    }
+}
+
