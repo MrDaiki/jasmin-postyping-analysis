@@ -1,44 +1,48 @@
 open Jasmin
 open Prog
-open Walker
+open State_walker
 open Domain
 
-module Rdmutator : Statemutator with type state = Domain.t and type annotation = Domain.t = struct
+module RdMutator : SimpleMutator with type state = Domain.t = struct
   type state = Domain.t
 
-  type annotation = Domain.t
+  let loop_stop_condition (prev : state) (state : state) : bool = Domain.included prev state
 
-  let loop_stop_condition prev state = Domain.included state prev
+  let merge (_ : L.i_loc) (s1 : state) (s2 : state) : state = Domain.join s1 s2
 
-  let cif _ _ out1 out2 =
-      let state = Domain.join out1 out2 in
-      (state, state)
+  let cond (_ : L.i_loc) (_ : int gexpr) (state : state) : state = state
 
-  let cfor _ _ _ prev state =
-      let state = Domain.join prev state in
-      (state, state)
+  let cif (_ : L.i_loc) (_ : int gexpr) (state : state) : state * state = (state, state)
 
-  let cfor_decl (lv : int gvar_i) _ loc state = Domain.add (Sv.singleton lv.pl_desc) loc state
+  let cassign
+      (loc : L.i_loc)
+      (lv : int glval)
+      (_ : E.assgn_tag)
+      (_ : int gty)
+      (_ : int gexpr)
+      (state : state) : state =
+      Domain.add (written_lv Sv.empty lv) loc state
 
-  let cwhile _ _ _ prev state =
-      let state = Domain.join prev state in
-      (state, state)
+  let fcall (loc : L.i_loc) (lvs : int glvals) (_ : funname) (_ : int gexprs) (state : state) :
+      state =
+      Domain.add (written_lvs lvs) loc state
 
-  let cassign lv (_ : E.assgn_tag) (_ : int gty) (_ : int gexpr) (loc : L.i_loc) (state : state) =
-      let state = Domain.add (written_lv Sv.empty lv) loc state in
-      (state, state)
+  let syscall
+      (loc : L.i_loc)
+      (lvs : int glvals)
+      (_ : BinNums.positive Syscall_t.syscall_t)
+      (_ : int gexprs)
+      (state : state) : state =
+      Domain.add (written_lvs lvs) loc state
 
-  let copn lvs _ _ _ loc state =
-      let state = Domain.add (written_lvs lvs) loc state in
-      (state, state)
-
-  let fcall lvs (_ : funname) (_ : int gexprs) loc (state : state) =
-      let state = Domain.add (written_lvs lvs) loc state in
-      (state, state)
-
-  let syscall lvs _ _ loc state =
-      let state = Domain.add (written_lvs lvs) loc state in
-      (state, state)
+  let copn
+      (loc : L.i_loc)
+      (lvs : int glvals)
+      (_ : E.assgn_tag)
+      (_ : 'asm Sopn.sopn)
+      (_ : int gexprs)
+      (state : state) : state =
+      Domain.add (written_lvs lvs) loc state
 end
 
-module RdWalker = TreeWalker (Rdmutator)
+module RdWalker = SimpleWalker (RdMutator)
