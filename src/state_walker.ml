@@ -115,7 +115,18 @@ module SimpleWalker (Mutator : SimpleMutator) = struct
 
   let walk_func (f : ('info, 'asm) func) (state : Mutator.state) =
       let state, body = walk_stmt f.f_body state in
-      ({f with f_body= body}, state)
+      ( { f_loc= f.f_loc
+        ; f_annot= f.f_annot
+        ; f_cc= f.f_cc
+        ; f_name= f.f_name
+        ; f_tyin= f.f_tyin
+        ; f_args= f.f_args
+        ; f_body= body
+        ; f_tyout= f.f_tyout
+        ; f_outannot= f.f_outannot
+        ; (* annotation attach to return type *)
+          f_ret= f.f_ret }
+      , state )
 end
 
 (*
