@@ -5,9 +5,11 @@ open Rd.Mutator
 open Types.Sgv
 open Rd.Domain
 open Error
-open Types.Iloc
+open Rd.Srdi
 
-type ud_error = VarNotIntialized of int gvar_i
+type check_mode =
+| Strict
+| NotStrict
 
 let is_local (v : int ggvar) =
     match v.gs with
@@ -44,14 +46,19 @@ let rec lvars_e (e : expr) : Sgv.t =
     | PappN (_, exprs) -> List.fold (fun sl e -> Sgv.union sl (lvars_e e)) Sgv.empty exprs
     | Pif (_, e1, e2, e3) -> Sgv.union (lvars_e e1) (Sgv.union (lvars_e e2) (lvars_e e3))
 
-let check_ud_var (dom : Domain.t) (_ : L.i_loc) (modified_local_var : 'len gvar_i) : unit =
+let check_ud_var (mode : check_mode) (dom : Domain.t) (modified_local_var : 'len gvar_i) : unit =
     match Mv.find_opt (L.unloc modified_local_var) dom with
-    | None -> rs_uderror ~loc:(L.loc modified_local_var) (VarNotIntialized modified_local_var)
+    | None -> assert false (*This case is not possible with current version*)
     | Some iset ->
-        if Si.is_empty iset then
-          assert false (*TODO : handle error here*)
+    match mode with
+    | Strict ->
+        if Srdi.mem Default iset then
+          rs_uderror ~loc:(L.loc modified_local_var) (VarNotIntialized modified_local_var)
+    | NotStrict ->
+        if Srdi.equal iset (Srdi.singleton Default) then
+          rs_uderror ~loc:(L.loc modified_local_var) (VarNotIntialized modified_local_var)
 
-let ud_expr (dom : Domain.t) (instr : L.i_loc) (locvars : Sv.t) (e : expr) : unit =
+let ud_expr (mode : check_mode) (dom : Domain.t) (locvars : Sv.t) (e : expr) : unit =
     let found_vars = lvars_e e in
     let used_local_vars =
         Sgv.fold
@@ -62,34 +69,36 @@ let ud_expr (dom : Domain.t) (instr : L.i_loc) (locvars : Sv.t) (e : expr) : uni
               sl )
           found_vars Sgv.empty
     in
-    Sgv.iter (check_ud_var dom instr) used_local_vars
+    Sgv.iter (check_ud_var mode dom) used_local_vars
 
-let ud_range (dom : Domain.t) (locvars : Sv.t) (instr : L.i_loc) ((_, e1, e2) : 'len grange) : unit
+let ud_range (mode : check_mode) (dom : Domain.t) (locvars : Sv.t) ((_, e1, e2) : 'len grange) :
+    unit =
+    ud_expr mode dom locvars e1 ; ud_expr mode dom locvars e2
+
+let rec ud_instr (mode : check_mode) (locvars : Sv.t) (instr : ('len, Domain.t, 'asm) ginstr) : unit
     =
-    ud_expr dom instr locvars e1 ; ud_expr dom instr locvars e2
-
-let rec ud_instr (locvars : Sv.t) (instr : ('len, Domain.t, 'asm) ginstr) : unit =
     match instr.i_desc with
-    | Cassgn (_, _, _, expr) -> ud_expr instr.i_info instr.i_loc locvars expr
-    | Copn (_, _, _, exprs) -> List.iter (ud_expr instr.i_info instr.i_loc locvars) exprs
-    | Csyscall (_, _, exprs) -> List.iter (ud_expr instr.i_info instr.i_loc locvars) exprs
-    | Ccall (_, _, exprs) -> List.iter (ud_expr instr.i_info instr.i_loc locvars) exprs
+    | Cassgn (_, _, _, expr) -> ud_expr mode instr.i_info locvars expr
+    | Copn (_, _, _, exprs) -> List.iter (ud_expr mode instr.i_info locvars) exprs
+    | Csyscall (_, _, exprs) -> List.iter (ud_expr mode instr.i_info locvars) exprs
+    | Ccall (_, _, exprs) -> List.iter (ud_expr mode instr.i_info locvars) exprs
     | Cif (expr, b1, b2) ->
-        ud_expr instr.i_info instr.i_loc locvars expr ;
+        ud_expr mode instr.i_info locvars expr ;
         ud_stmt locvars b1 ;
         ud_stmt locvars b2
     | Cfor (_, r, b) ->
-        ud_range instr.i_info locvars instr.i_loc r ;
+        ud_range mode instr.i_info locvars r ;
         ud_stmt locvars b
     | Cwhile (_, b1, c, b2) ->
-        ud_expr instr.i_info instr.i_loc locvars c ;
+        ud_expr mode instr.i_info locvars c ;
         ud_stmt locvars b1 ;
         ud_stmt locvars b2
 
-and ud_stmt (locvars : Sv.t) stmt : unit = List.iter (ud_instr locvars) stmt
+and ud_stmt ?(mode = NotStrict) (locvars : Sv.t) stmt : unit =
+    List.iter (ud_instr mode locvars) stmt
 
 let ud_func (f : ('info', 'asm) func) : unit =
-    let f, _ = RdWalker.walk_func f Domain.empty in
+    let f, _ = RdWalker.walk_func f (Domain.from_function_start f) in
     let locvars = Prog.locals f in
     ud_stmt locvars f.f_body
 

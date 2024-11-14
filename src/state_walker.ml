@@ -63,7 +63,8 @@ module SimpleWalker (Mutator : SimpleMutator) = struct
           else
             loop state
       in
-      loop state
+      let wh, os = loop state in
+      (wh, Mutator.merge loc state os)
 
   and walk_for x (direction, gstart, gend) body loc prev =
       let _, state =
@@ -82,7 +83,8 @@ module SimpleWalker (Mutator : SimpleMutator) = struct
           else
             loop state
       in
-      loop state
+      let forr, os = loop state in
+      (forr, Mutator.merge loc state os)
 
   and walk_instr_r (instr : (int, 'info, 'asm) ginstr_r) (loc : L.i_loc) (state : Mutator.state) :
       (int, Mutator.state, 'asm) ginstr_r * Mutator.state =

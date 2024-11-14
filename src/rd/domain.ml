@@ -1,18 +1,22 @@
 open Jasmin
 open Prog
-open Types.Iloc
+open Srdi
 
 module Domain = struct
-  type t = Si.t Mv.t
+  type t = Srdi.t Mv.t
 
   let empty : t = Mv.empty
 
-  let add xs i = Sv.fold (fun x -> Mv.add x (Si.singleton i)) xs
+  let from_function_start (f : ('info, 'asm) func) : t =
+      let locvars = Prog.locals f in
+      Sv.fold (fun x acc -> Mv.add x (Srdi.singleton Default) acc) locvars Mv.empty
 
-  let join = Mv.union (fun _ a b -> Some (Si.union a b))
+  let add xs i = Sv.fold (fun x -> Mv.add x (Srdi.singleton i)) xs
+
+  let join = Mv.union (fun _ a b -> Some (Srdi.union a b))
 
   let included (x : t) (y : t) =
-      Mv.for_all (fun x s1 -> Si.subset s1 (Mv.find_default Si.empty x y)) x
+      Mv.for_all (fun x s1 -> Srdi.subset s1 (Mv.find_default Srdi.empty x y)) x
 end
 
 let written_lv s = function

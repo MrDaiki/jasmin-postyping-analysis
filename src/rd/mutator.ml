@@ -21,11 +21,11 @@ module RdMutator : SimpleMutator with type state = Domain.t = struct
       (_ : int gty)
       (_ : int gexpr)
       (state : state) : state =
-      Domain.add (written_lv Sv.empty lv) loc state
+      Domain.add (written_lv Sv.empty lv) (Instruction loc) state
 
   let fcall (loc : L.i_loc) (lvs : int glvals) (_ : funname) (_ : int gexprs) (state : state) :
       state =
-      Domain.add (written_lvs lvs) loc state
+      Domain.add (written_lvs lvs) (Instruction loc) state
 
   let syscall
       (loc : L.i_loc)
@@ -33,7 +33,7 @@ module RdMutator : SimpleMutator with type state = Domain.t = struct
       (_ : BinNums.positive Syscall_t.syscall_t)
       (_ : int gexprs)
       (state : state) : state =
-      Domain.add (written_lvs lvs) loc state
+      Domain.add (written_lvs lvs) (Instruction loc) state
 
   let copn
       (loc : L.i_loc)
@@ -42,7 +42,7 @@ module RdMutator : SimpleMutator with type state = Domain.t = struct
       (_ : 'asm Sopn.sopn)
       (_ : int gexprs)
       (state : state) : state =
-      Domain.add (written_lvs lvs) loc state
+      Domain.add (written_lvs lvs) (Instruction loc) state
 end
 
 module RdWalker = SimpleWalker (RdMutator)

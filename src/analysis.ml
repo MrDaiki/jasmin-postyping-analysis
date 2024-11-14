@@ -1,12 +1,10 @@
 open Jasmin
-
-(* open Rd_structured *)
 open Staticvars.Mutator
-open Mutability.Mutator
 open Initvars.Check
 open Functioncalls.Mutator
+open Functioneffects.Memory.Check
 
-let check prog = iv_prog prog ; md_prog prog ; ud_prog prog ; fc_prog prog
+let check prog = iv_prog prog ; ud_prog prog ; fc_prog prog ; mem_prog prog
 
 module Arch =
   ( val let use_set0 = true and use_lea = false in
@@ -39,3 +37,6 @@ let () =
         | Mutability.Error.MdError (loc, e) ->
             Format.eprintf "%a: %a@." Location.pp_loc loc Mutability.Error.pp_mderror e ;
             exit 6
+        | Initvars.Error.UvError (loc, e) ->
+            Format.eprintf "%a: %a@." Location.pp_loc loc Initvars.Error.pp_uderror e ;
+            exit 7
