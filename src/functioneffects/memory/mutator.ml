@@ -19,6 +19,8 @@ module MemoryEffectMutator : SimpleMutator with type state = memory_effect = str
 
   let merge (_ : L.i_loc) (s1 : state) (s2 : state) : state = s1 || s2
 
+  let merge_out_loop s1 s2 = s1 || s2
+
   let cond (_ : L.i_loc) (_ : int gexpr) (state : state) : state = state
 
   let cif (_ : L.i_loc) (_ : int gexpr) (state : state) : state * state = (state, state)

@@ -6,6 +6,8 @@ module type SimpleMutator = sig
 
   val loop_stop_condition : state -> state -> bool
 
+  val merge_out_loop : state -> state -> state
+
   val merge : L.i_loc -> state -> state -> state
 
   val cond : L.i_loc -> int gexpr -> state -> state
@@ -64,7 +66,7 @@ module SimpleWalker (Mutator : SimpleMutator) = struct
             loop (Mutator.merge loc state prev)
       in
       let wh, os, out = loop state in
-      (wh, Mutator.merge loc state os, Mutator.merge loc out prev)
+      (wh, Mutator.merge loc state os, Mutator.merge_out_loop out prev)
 
   and walk_for x (direction, gstart, gend) body loc prev =
       let _, state, _ =
@@ -84,7 +86,7 @@ module SimpleWalker (Mutator : SimpleMutator) = struct
             loop (Mutator.merge loc state prev)
       in
       let forr, os = loop state in
-      (forr, Mutator.merge loc state os, Mutator.merge loc prev state)
+      (forr, Mutator.merge loc state os, Mutator.merge_out_loop prev state)
 
   and walk_instr_r (instr : (int, 'info, 'asm) ginstr_r) (loc : L.i_loc) (prev : Mutator.state) :
       (int, Mutator.state, 'asm) ginstr_r * Mutator.state * Mutator.state =
