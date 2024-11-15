@@ -135,6 +135,8 @@ module MemoryEffectMutator : SimpleMutator with type state = memory_effect = str
 
   let loop_stop_condition (prev : state) (state : state) : bool = true
 
+  let merge_out_loop (s1 : state) (s2 : state) : state = s1
+  
   let merge (loc : L.i_loc) (state : state) (state : state) : state = state
 
   let cond (loc : L.i_loc) (cond : int gexpr) (state : state) : state = state
