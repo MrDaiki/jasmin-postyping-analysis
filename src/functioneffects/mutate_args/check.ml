@@ -16,6 +16,7 @@ let is_reduced (varmap : mut_param_effect Mv.t) : bool =
 let reduce_dependencies (fns : Sv.t) (varmap : mut_param_effect Mv.t) : mut_param_effect =
     Sv.fold
       (fun fn effect ->
+        Printf.printf "%s\n" fn.v_name ;
         let fn_effect = Mv.find fn varmap in
         match fn_effect with
         | None -> effect
@@ -45,8 +46,25 @@ let mp_prog (prog : ('info, 'asm) prog) =
     let varmap =
         List.fold
           (fun acc func ->
-            let _, varmap = Walker.walk_func func Mv.empty in
-            Mv.union (fun _ _ _ -> assert false) acc varmap )
+            let intial_state =
+                List.fold
+                  (fun acc' var ->
+                    if is_mutable_ptr var then
+                      Mv.add var None acc'
+                    else
+                      acc' )
+                  Mv.empty func.f_args
+            in
+            let _, varmap = Walker.walk_func func intial_state in
+            Mv.merge
+              (fun _ a b ->
+                match (a, b) with
+                | None, None -> None
+                | Some x, None
+                 |None, Some x ->
+                    Some x
+                | _ -> assert false )
+              acc varmap )
           Mv.empty funcs
     in
     let varmap = reduce varmap in

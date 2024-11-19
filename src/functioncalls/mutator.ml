@@ -1,64 +1,59 @@
 open Jasmin
 open Prog
-open Walker
+open State_walker
 open FInfo
 open Warning
 
-module FCallMutator : Statemutator with type state = Sf.t = struct
+module FCallMutator : SimpleMutator with type state = Sf.t = struct
   type state = Sf.t
 
-  type annotation = unit
+  let loop_stop_condition (_ : state) (_ : state) : bool = true
 
-  let loop_stop_condition _ _ = true
+  let merge_out_loop (s1 : state) (s2 : state) : state = Sf.union s1 s2
 
-  let cif (_ : int gexpr) (_ : L.i_loc) (env_th : state) (env_el : state) : state * annotation =
-      (Sf.union env_th env_el, ())
+  let merge (_ : L.i_loc) (s1 : state) (s2 : state) : state = Sf.union s1 s2
 
-  let cfor (_ : 'len gvar_i) (_ : 'len grange) (_ : L.i_loc) (_ : state) (env : state) :
-      state * annotation =
-      (env, ())
+  let cond (_ : L.i_loc) (_ : int gexpr) (state : state) : state = state
 
-  let cfor_decl (_ : int gvar_i) (_ : 'len grange) (_ : L.i_loc) (env : state) : state = env
-
-  let cwhile (_ : E.align) (_ : 'len gexpr) (_ : L.i_loc) (env1 : state) (env2 : state) :
-      state * annotation =
-      (Sf.union env1 env2, ())
+  let cif (_ : L.i_loc) (_ : int gexpr) (state : state) : state * state = (state, state)
 
   let cassign
+      (_ : L.i_loc)
       (_ : int glval)
       (_ : E.assgn_tag)
-      (_ : 'len gty)
-      (_ : 'len gexpr)
-      (_ : L.i_loc)
-      (state : state) : state * annotation =
-      (state, ())
+      (_ : int gty)
+      (_ : int gexpr)
+      (state : state) : state =
+      state
 
-  let fcall _ fname _ _ d : state * annotation = (Sf.add fname d, ())
+  let fcall (_ : L.i_loc) (_ : int glvals) (funname : funname) (_ : int gexprs) (state : state) :
+      state =
+      Sf.add funname state
 
   let syscall
+      (_ : L.i_loc)
       (_ : int glvals)
       (_ : BinNums.positive Syscall_t.syscall_t)
-      (_ : 'len gexprs)
-      (_ : L.i_loc)
-      (state : state) : state * annotation =
-      (state, ())
+      (_ : int gexprs)
+      (state : state) : state =
+      state
 
   let copn
+      (_ : L.i_loc)
       (_ : int glvals)
       (_ : E.assgn_tag)
       (_ : 'asm Sopn.sopn)
       (_ : int gexprs)
-      (_ : L.i_loc)
-      (state : state) : state * annotation =
-      (state, ())
+      (state : state) : state =
+      state
 end
 
-module FCallWalker = TreeWalker (FCallMutator)
+module FCallWalker = SimpleWalker.Make (FCallMutator)
 
 let non_export_functions (funcs : ('len, 'info, 'asm) gfunc list) =
     List.fold_left
       (fun acc f ->
-        if is_export f.f_cc then
+        if not (is_export f.f_cc) then
           Sf.add f.f_name acc
         else
           acc )
@@ -73,5 +68,5 @@ let fc_prog ((_, funcs) : ('info, 'asm) prog) : unit =
           Sf.empty funcs
     in
     let non_export_functions = non_export_functions funcs in
-    let diff = Sf.diff funcs_calls non_export_functions in
+    let diff = Sf.diff non_export_functions funcs_calls in
     Sf.iter (fun f -> pp_unf_warning Format.std_formatter (UnusedFunction f)) diff
