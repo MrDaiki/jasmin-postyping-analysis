@@ -25,108 +25,165 @@ module type SimpleMutator = sig
     L.i_loc -> int glval list -> E.assgn_tag -> 'asm Sopn.sopn -> int gexprs -> state -> state
 end
 
-module SimpleWalker (Mutator : SimpleMutator) = struct
-  let build_assign_from_for (x : int gvar_i) direction gstart gend =
-      let gend =
-          if direction = E.UpTo then
-            gend
-          else
-            gstart
-      in
-      let comp_op, assign_op =
-          if direction = E.UpTo then
-            (E.Olt Cmp_int, E.Oadd Op_int)
-          else
-            (E.Ogt Cmp_int, E.Osub Op_int)
-      in
-      let x_ggvar = {gv= x; gs= Slocal} in
-      let cmp_expr = Papp2 (comp_op, Pvar x_ggvar, gend) in
-      let incr_expr = Papp2 (assign_op, Pvar x_ggvar, Pconst (Z.of_int 1)) in
-      (cmp_expr, incr_expr)
+module SimpleWalker = struct
+  module type S = sig
+    type state
 
-  let walk_assign lv tag gty expr loc prev =
-      let state = Mutator.cassign loc lv tag gty expr prev in
-      (Cassgn (lv, tag, gty, expr), state, prev)
+    val build_assign_from_for :
+      int gvar_i -> E.dir -> int gexpr -> int gexpr -> int gexpr * int gexpr
 
-  let rec walk_instr (state : Mutator.state) (instr : ('info, 'asm) instr) :
-      Mutator.state * (int, Mutator.state, 'asm) ginstr =
-      let out, news, annot = walk_instr_r instr.i_desc instr.i_loc state in
-      (news, {i_desc= out; i_loc= instr.i_loc; i_info= annot; i_annot= instr.i_annot})
+    val walk_assign :
+         int glval
+      -> E.assgn_tag
+      -> int gty
+      -> int gexpr
+      -> L.i_loc
+      -> state
+      -> (int, state, 'b) ginstr_r * state * state
 
-  and walk_while al body1 e body2 loc prev =
-      let state, _ = walk_stmt body1 prev in
-      let state = Mutator.cond loc e state in
-      let rec loop prev =
-          let out, body2 = walk_stmt body2 prev in
-          let state, body1 = walk_stmt body1 out in
-          let state = Mutator.cond loc e state in
-          if Mutator.loop_stop_condition prev state then
-            (Cwhile (al, body1, e, body2), state, out)
-          else
-            loop (Mutator.merge loc state prev)
-      in
-      let wh, os, out = loop state in
-      (wh, Mutator.merge loc state os, Mutator.merge_out_loop out prev)
+    val walk_instr : state -> ('info, 'asm) instr -> state * (int, state, 'asm) ginstr
 
-  and walk_for x (direction, gstart, gend) body loc prev =
-      let _, state, _ =
-          match direction with
-          | E.UpTo -> walk_assign (Lvar x) AT_none (L.unloc x).v_ty gstart loc prev
-          | E.DownTo -> walk_assign (Lvar x) AT_none (L.unloc x).v_ty gend loc prev
-      in
-      let cmp_exp, incr_exp = build_assign_from_for x direction gstart gend in
-      let state = Mutator.cond loc cmp_exp state in
-      let rec loop prev =
-          let state, body = walk_stmt body prev in
-          let _, state, _ = walk_assign (Lvar x) AT_none (L.unloc x).v_ty incr_exp loc state in
-          let state = Mutator.cond loc cmp_exp state in
-          if Mutator.loop_stop_condition prev state then
-            (Cfor (x, (direction, gstart, gend), body), state)
-          else
-            loop (Mutator.merge loc state prev)
-      in
-      let forr, os = loop state in
-      (forr, Mutator.merge loc state os, Mutator.merge_out_loop prev state)
+    val walk_while :
+         E.align
+      -> (int, 'info, 'asm) gstmt
+      -> int gexpr
+      -> (int, 'info, 'asm) gstmt
+      -> L.i_loc
+      -> state
+      -> (int, state, 'asm) ginstr_r * state * state
 
-  and walk_instr_r (instr : (int, 'info, 'asm) ginstr_r) (loc : L.i_loc) (prev : Mutator.state) :
-      (int, Mutator.state, 'asm) ginstr_r * Mutator.state * Mutator.state =
-      match instr with
-      | Cassgn (lv, tag, gty, expr) -> walk_assign lv tag gty expr loc prev
-      | Ccall (lvs, fname, args) ->
-          let state = Mutator.fcall loc lvs fname args prev in
-          (Ccall (lvs, fname, args), state, prev)
-      | Csyscall (lvs, syscall, exprs) ->
-          let state = Mutator.syscall loc lvs syscall exprs prev in
-          (Csyscall (lvs, syscall, exprs), state, prev)
-      | Copn (lvs, tag, sopn, exprs) ->
-          let state = Mutator.copn loc lvs tag sopn exprs prev in
-          (Copn (lvs, tag, sopn, exprs), state, prev)
-      | Cif (e, th, el) ->
-          let s1, s2 = Mutator.cif loc e prev in
-          let s1, th = walk_stmt th s1 in
-          let s2, el = walk_stmt el s2 in
-          let state = Mutator.merge loc s1 s2 in
-          (Cif (e, th, el), state, prev)
-      | Cfor (x, gr, body) -> walk_for x gr body loc prev
-      | Cwhile (al, body1, e, body2) -> walk_while al body1 e body2 loc prev
+    val walk_for :
+         int gvar_i
+      -> int grange
+      -> (int, 'info, 'asm) gstmt
+      -> L.i_loc
+      -> state
+      -> (int, state, 'asm) ginstr_r * state * state
 
-  and walk_stmt (stmt : (int, 'info, 'asm) gstmt) (state : Mutator.state) =
-      List.fold_left_map walk_instr state stmt
+    val walk_instr_r :
+      (int, 'info, 'asm) ginstr_r -> L.i_loc -> state -> (int, state, 'asm) ginstr_r * state * state
 
-  let walk_func (f : ('info, 'asm) func) (state : Mutator.state) =
-      let state, body = walk_stmt f.f_body state in
-      ( { f_loc= f.f_loc
-        ; f_annot= f.f_annot
-        ; f_cc= f.f_cc
-        ; f_name= f.f_name
-        ; f_tyin= f.f_tyin
-        ; f_args= f.f_args
-        ; f_body= body
-        ; f_tyout= f.f_tyout
-        ; f_outannot= f.f_outannot
-        ; (* annotation attach to return type *)
-          f_ret= f.f_ret }
-      , state )
+    val walk_stmt : (int, 'info, 'asm) gstmt -> state -> state * (int, state, 'asm) gstmt
+
+    val walk_func : ('info, 'asm) func -> state -> (int, state, 'asm) gfunc * state
+  end
+
+  module Make (Mutator : SimpleMutator) : S with type state = Mutator.state = struct
+    type state = Mutator.state
+
+    let build_assign_from_for
+        (x : int gvar_i)
+        (direction : E.dir)
+        (gstart : int gexpr)
+        (gend : int gexpr) : int gexpr * int gexpr =
+        let gend =
+            if direction = E.UpTo then
+              gend
+            else
+              gstart
+        in
+        let comp_op, assign_op =
+            if direction = E.UpTo then
+              (E.Olt Cmp_int, E.Oadd Op_int)
+            else
+              (E.Ogt Cmp_int, E.Osub Op_int)
+        in
+        let x_ggvar = {gv= x; gs= Slocal} in
+        let cmp_expr = Papp2 (comp_op, Pvar x_ggvar, gend) in
+        let incr_expr = Papp2 (assign_op, Pvar x_ggvar, Pconst (Z.of_int 1)) in
+        (cmp_expr, incr_expr)
+
+    let walk_assign
+        (lv : int glval)
+        (tag : E.assgn_tag)
+        (gty : int gty)
+        (expr : int gexpr)
+        (loc : L.i_loc)
+        (prev : Mutator.state) : (int, Mutator.state, 'asm) ginstr_r * Mutator.state * Mutator.state
+        =
+        let state = Mutator.cassign loc lv tag gty expr prev in
+        (Cassgn (lv, tag, gty, expr), state, prev)
+
+    let rec walk_instr (state : Mutator.state) (instr : ('info, 'asm) instr) :
+        Mutator.state * (int, Mutator.state, 'asm) ginstr =
+        let out, news, annot = walk_instr_r instr.i_desc instr.i_loc state in
+        (news, {i_desc= out; i_loc= instr.i_loc; i_info= annot; i_annot= instr.i_annot})
+
+    and walk_while al body1 e body2 loc prev =
+        let state, _ = walk_stmt body1 prev in
+        let state = Mutator.cond loc e state in
+        let rec loop prev =
+            let out, body2 = walk_stmt body2 prev in
+            let state, body1 = walk_stmt body1 out in
+            let state = Mutator.cond loc e state in
+            if Mutator.loop_stop_condition prev state then
+              (Cwhile (al, body1, e, body2), state, out)
+            else
+              loop (Mutator.merge loc state prev)
+        in
+        let wh, os, out = loop state in
+        (wh, Mutator.merge loc state os, Mutator.merge_out_loop out prev)
+
+    and walk_for x (direction, gstart, gend) body loc prev =
+        let _, state, _ =
+            match direction with
+            | E.UpTo -> walk_assign (Lvar x) AT_none (L.unloc x).v_ty gstart loc prev
+            | E.DownTo -> walk_assign (Lvar x) AT_none (L.unloc x).v_ty gend loc prev
+        in
+        let cmp_exp, incr_exp = build_assign_from_for x direction gstart gend in
+        let state = Mutator.cond loc cmp_exp state in
+        let rec loop prev =
+            let state, body = walk_stmt body prev in
+            let _, state, _ = walk_assign (Lvar x) AT_none (L.unloc x).v_ty incr_exp loc state in
+            let state = Mutator.cond loc cmp_exp state in
+            if Mutator.loop_stop_condition prev state then
+              (Cfor (x, (direction, gstart, gend), body), state)
+            else
+              loop (Mutator.merge loc state prev)
+        in
+        let forr, os = loop state in
+        (forr, Mutator.merge loc state os, Mutator.merge_out_loop prev state)
+
+    and walk_instr_r (instr : (int, 'info, 'asm) ginstr_r) (loc : L.i_loc) (prev : Mutator.state) :
+        (int, Mutator.state, 'asm) ginstr_r * Mutator.state * Mutator.state =
+        match instr with
+        | Cassgn (lv, tag, gty, expr) -> walk_assign lv tag gty expr loc prev
+        | Ccall (lvs, fname, args) ->
+            let state = Mutator.fcall loc lvs fname args prev in
+            (Ccall (lvs, fname, args), state, prev)
+        | Csyscall (lvs, syscall, exprs) ->
+            let state = Mutator.syscall loc lvs syscall exprs prev in
+            (Csyscall (lvs, syscall, exprs), state, prev)
+        | Copn (lvs, tag, sopn, exprs) ->
+            let state = Mutator.copn loc lvs tag sopn exprs prev in
+            (Copn (lvs, tag, sopn, exprs), state, prev)
+        | Cif (e, th, el) ->
+            let s1, s2 = Mutator.cif loc e prev in
+            let s1, th = walk_stmt th s1 in
+            let s2, el = walk_stmt el s2 in
+            let state = Mutator.merge loc s1 s2 in
+            (Cif (e, th, el), state, prev)
+        | Cfor (x, gr, body) -> walk_for x gr body loc prev
+        | Cwhile (al, body1, e, body2) -> walk_while al body1 e body2 loc prev
+
+    and walk_stmt (stmt : (int, 'info, 'asm) gstmt) (state : Mutator.state) =
+        List.fold_left_map walk_instr state stmt
+
+    let walk_func (f : ('info, 'asm) func) (state : Mutator.state) =
+        let state, body = walk_stmt f.f_body state in
+        ( { f_loc= f.f_loc
+          ; f_annot= f.f_annot
+          ; f_cc= f.f_cc
+          ; f_name= f.f_name
+          ; f_tyin= f.f_tyin
+          ; f_args= f.f_args
+          ; f_body= body
+          ; f_tyout= f.f_tyout
+          ; f_outannot= f.f_outannot
+          ; (* annotation attach to return type *)
+            f_ret= f.f_ret }
+        , state )
+  end
 end
 
 (*

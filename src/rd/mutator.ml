@@ -47,4 +47,4 @@ module RdMutator : SimpleMutator with type state = Domain.t = struct
       Domain.add (written_lvs lvs) (Instruction loc) state
 end
 
-module RdWalker = SimpleWalker (RdMutator)
+module RdWalker = SimpleWalker.Make (RdMutator)

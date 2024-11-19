@@ -56,7 +56,7 @@ module MemoryEffectMutator : SimpleMutator with type state = memory_effect = str
       state || memory_effect_lvs lvs
 end
 
-module MemoryEffectWalker = SimpleWalker (MemoryEffectMutator)
+module MemoryEffectWalker = State_walker.SimpleWalker.Make (MemoryEffectMutator)
 
 let memory_effects ((_, funcs) : ('info, 'asm) prog) : memory_effect Mf.t =
     List.fold_left
