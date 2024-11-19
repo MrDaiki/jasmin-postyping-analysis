@@ -24,5 +24,5 @@ let ef_check (p : ('info, 'asm) prog) =
         let memory_effects = Mf.find k memory_effects in
         if not (check_effects return_effect mut_param_effect memory_effects) then
           Printf.printf "Warning : Function %s has no effect\n" k.fn_name )
-        (* TODO : handle warning formating properly*)
+        (* TODO : handle warning formating properly *)
       mut_param_effects
