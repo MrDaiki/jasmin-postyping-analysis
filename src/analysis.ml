@@ -2,10 +2,9 @@ open Jasmin
 open Staticvars.Mutator
 open Initvars.Check
 open Functioncalls.Mutator
-open Functioneffects.Memory.Check
-open Functioneffects.Mutate_args.Check
+open Functioneffects.Check
 
-let check prog = iv_prog prog ; ud_prog prog ; fc_prog prog ; mem_prog prog ; mp_prog prog
+let check prog = iv_prog prog ; ud_prog prog ; fc_prog prog ; ef_check prog
 
 module Arch =
   ( val let use_set0 = true and use_lea = false in

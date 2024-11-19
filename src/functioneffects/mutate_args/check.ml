@@ -50,24 +50,17 @@ let mp_prog (prog : ('info, 'asm) prog) =
           Mv.empty funcs
     in
     let varmap = reduce varmap in
-    let func_map =
-        List.iter
-          (fun func ->
-            let mut_params =
-                List.fold
-                  (fun acc' var ->
-                    if is_mutable_ptr var then
-                      Sv.add var acc'
-                    else
-                      acc' )
-                  Sv.empty func.f_args
-            in
-            let func_effect = Sv.fold (fun var acc -> acc || Mv.find var varmap) mut_params None in
-            match func_effect with
-            | None ->
-                Printf.printf "Function %s has no mutable parameter effect\n" func.f_name.fn_name
-            | Some -> ()
-            | Depends _ -> Printf.printf "Error : Depends shouldn't have substituted" )
-          funcs
-    in
-    func_map
+    List.fold
+      (fun acc func ->
+        let mut_params =
+            List.fold
+              (fun acc' var ->
+                if is_mutable_ptr var then
+                  Sv.add var acc'
+                else
+                  acc' )
+              Sv.empty func.f_args
+        in
+        let func_effect = Sv.fold (fun var acc -> acc || Mv.find var varmap) mut_params None in
+        Mf.add func.f_name func_effect acc )
+      Mf.empty funcs

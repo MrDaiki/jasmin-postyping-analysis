@@ -39,11 +39,4 @@ let rec reduce_memory_effect (effects : memory_effect Mf.t) : memory_effect Mf.t
 
 let mem_prog (prog : ('info, 'asm) prog) =
     let memory_effects = memory_effects prog in
-    let reduced_effect = reduce_memory_effect memory_effects in
-    Mf.iter
-      (fun funname effect ->
-        match effect with
-        | None -> Printf.printf "Function %s has no memory effect\n" funname.fn_name
-        | Some -> ()
-        | Depends _ -> Printf.printf "Error : Depends shoudn't have substited" )
-      reduced_effect
+    reduce_memory_effect memory_effects
