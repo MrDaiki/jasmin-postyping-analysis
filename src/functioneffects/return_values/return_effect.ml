@@ -8,3 +8,7 @@ let ( || ) e1 e2 =
     | Some, _
      |_, Some ->
         Some
+
+let string_of_return_effect = function
+    | None -> "None"
+    | Some -> "Some"

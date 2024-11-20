@@ -1,0 +1,12 @@
+
+
+
+fn test_sub (reg mut ptr u64[4] data) -> (reg mut ptr u64[4]) {
+    data[1] = 0;
+    return data;
+}
+
+export fn test (reg mut ptr u64[4] data) -> (reg mut ptr u64[4]) {
+    data = test_sub(data);
+    return data;
+}

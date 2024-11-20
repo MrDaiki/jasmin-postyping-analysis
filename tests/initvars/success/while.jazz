@@ -1,13 +1,12 @@
 
 
 
-fn test() {
+fn test() -> reg u64{
     reg u64 x;
-    reg u64 y;
-    y=x;
 
     while (x < 10) {
         x = x + 1;
     }
 
+    return x;
 }

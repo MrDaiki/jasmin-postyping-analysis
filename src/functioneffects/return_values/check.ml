@@ -8,13 +8,13 @@ let rt_prog (_, funcs) : return_effect Mf.t =
       (fun acc f ->
         let effect =
             List.fold
-              (fun effect v ->
-                match v.v_kind with
+              (fun eff v ->
+                match (L.unloc v).v_kind with
                 | Reg (_, Pointer _)
                  |Stack (Pointer _) ->
-                    effect
+                    eff
                 | _ -> Some )
-              Return_effect.None f.f_args
+              Return_effect.None f.f_ret
         in
         Mf.add f.f_name effect acc )
       Mf.empty funcs

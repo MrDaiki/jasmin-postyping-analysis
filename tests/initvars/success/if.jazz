@@ -1,0 +1,14 @@
+
+
+
+fn test() -> reg u64{
+    reg u64 x;
+
+    if (false) {
+        x = 1;
+    }
+
+    reg u64 y = x;
+
+    return y;
+}
