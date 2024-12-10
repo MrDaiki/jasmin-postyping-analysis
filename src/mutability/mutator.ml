@@ -3,7 +3,7 @@ open Prog
 open Utils
 open Error
 open Environment
-open Walker
+open State_walker
 
 let md_lvalue (variables : MutabilityEnvironment.t) (lv : 'len glval) : unit =
     match lv with
@@ -41,62 +41,98 @@ let md_func_args (variables : MutabilityEnvironment.t) (fun_name : funname) (arg
     in
     cmp_mutability (Mf.find fun_name variables.functions) args
 
-module MutabilityMutator : Statemutator with type state = MutabilityEnvironment.t = struct
+module MutabilityMutator : SimpleMutator with type state = MutabilityEnvironment.t = struct
   type state = MutabilityEnvironment.t
 
-  type annotation = unit
+  let loop_stop_condition (_ : state) (_ : state) : bool = true
 
-  let loop_stop_condition _ _ = true
+  let merge_out_loop (s1 : state) (s2 : state) : state = MutabilityEnvironment.merge s1 s2
 
-  let cif
-      (_ : int gexpr)
-      (_ : L.i_loc)
-      (env_th : MutabilityEnvironment.t)
-      (env_el : MutabilityEnvironment.t) : state * annotation =
-      (MutabilityEnvironment.merge env_th env_el, ())
+  let merge (_ : L.i_loc) (s1 : state) (s2 : state) : state = MutabilityEnvironment.merge s1 s2
 
-  let cfor (_ : 'len gvar_i) (_ : 'len grange) (_ : L.i_loc) (_ : state) (env : state) :
-      state * annotation =
-      (env, ())
+  let cond (_ : L.i_loc) (_ : int gexpr) (state : state) : state = state
 
-  let cfor_decl (_ : int gvar_i) (_ : 'len grange) (_ : L.i_loc) (env : state) : state = env
-
-  let cwhile (_ : E.align) (_ : 'len gexpr) (_ : L.i_loc) (_ : state) (env : state) :
-      state * annotation =
-      (env, ())
+  let cif (_ : L.i_loc) (_ : int gexpr) (state : state) : state * state = (state, state)
 
   let cassign
-      (lv : int glval)
-      (_ : E.assgn_tag)
-      (_ : 'len gty)
-      (_ : 'len gexpr)
       (_ : L.i_loc)
-      (state : state) : state * annotation =
-      md_lvalue state lv ; (state, ())
+      (_ : int glval)
+      (_ : E.assgn_tag)
+      (_ : int gty)
+      (_ : int gexpr)
+      (state : state) : state =
+      state
 
-  let fcall (lvs : int glvals) (fn : funname) (exprs : int gexprs) (_ : L.i_loc) (state : state) :
-      state * annotation =
-      md_lvalues state lvs ; md_func_args state fn exprs ; (state, ())
+  let fcall (_ : L.i_loc) (_ : int glvals) (_ : funname) (_ : int gexprs) (state : state) : state =
+      state
 
   let syscall
-      (lvs : int glvals)
-      (_ : BinNums.positive Syscall_t.syscall_t)
-      (_ : 'len gexprs)
       (_ : L.i_loc)
-      (state : state) : state * annotation =
-      md_lvalues state lvs ; (state, ())
+      (_ : int glvals)
+      (_ : BinNums.positive Syscall_t.syscall_t)
+      (_ : int gexprs)
+      (state : state) : state =
+      state
 
   let copn
-      (lvs : int glvals)
+      (_ : L.i_loc)
+      (_ : int glvals)
       (_ : E.assgn_tag)
       (_ : 'asm Sopn.sopn)
       (_ : int gexprs)
-      (_ : L.i_loc)
-      (state : state) : state * annotation =
-      md_lvalues state lvs ; (state, ())
+      (state : state) : state =
+      state
+  (* let loop_stop_condition _ _ = true
+
+     let cif
+         (_ : int gexpr)
+         (_ : L.i_loc)
+         (env_th : MutabilityEnvironment.t)
+         (env_el : MutabilityEnvironment.t) : state * annotation =
+         (MutabilityEnvironment.merge env_th env_el, ())
+
+     let cfor (_ : 'len gvar_i) (_ : 'len grange) (_ : L.i_loc) (_ : state) (env : state) :
+         state * annotation =
+         (env, ())
+
+     let cfor_decl (_ : int gvar_i) (_ : 'len grange) (_ : L.i_loc) (env : state) : state = env
+
+     let cwhile (_ : E.align) (_ : 'len gexpr) (_ : L.i_loc) (_ : state) (env : state) :
+         state * annotation =
+         (env, ())
+
+     let cassign
+         (lv : int glval)
+         (_ : E.assgn_tag)
+         (_ : 'len gty)
+         (_ : 'len gexpr)
+         (_ : L.i_loc)
+         (state : state) : state * annotation =
+         md_lvalue state lv ; (state, ())
+
+     let fcall (lvs : int glvals) (fn : funname) (exprs : int gexprs) (_ : L.i_loc) (state : state) :
+         state * annotation =
+         md_lvalues state lvs ; md_func_args state fn exprs ; (state, ())
+
+     let syscall
+         (lvs : int glvals)
+         (_ : BinNums.positive Syscall_t.syscall_t)
+         (_ : 'len gexprs)
+         (_ : L.i_loc)
+         (state : state) : state * annotation =
+         md_lvalues state lvs ; (state, ())
+
+     let copn
+         (lvs : int glvals)
+         (_ : E.assgn_tag)
+         (_ : 'asm Sopn.sopn)
+         (_ : int gexprs)
+         (_ : L.i_loc)
+         (state : state) : state * annotation =
+         md_lvalues state lvs ; (state, ()) *)
 end
 
-module MutabilityWalker = TreeWalker (MutabilityMutator)
+module MutabilityWalker = SimpleWalker.Make (MutabilityMutator)
 
 let populate_environment_globals (globs : global_decl list) =
     List.fold

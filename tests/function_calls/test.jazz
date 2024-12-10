@@ -1,0 +1,15 @@
+
+fn data() -> reg u64{
+    reg u64 x = 4;
+    return x;
+}
+
+fn data2() -> reg u64{
+    reg u64 x = 4;
+    return x;
+}
+
+
+export fn test() {
+    reg u64 x = data2();
+}

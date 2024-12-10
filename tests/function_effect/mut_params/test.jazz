@@ -1,0 +1,8 @@
+
+
+export fn test(reg mut ptr u64[4] data) -> (reg mut ptr u64[4]) {
+    reg mut ptr u64[4] truc = data;
+    truc[1] = 0;
+    return truc;
+
+}

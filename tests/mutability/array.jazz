@@ -1,0 +1,6 @@
+
+
+
+fn test(reg ptr u64[4] tab) {
+    tab[i] = 0;
+}
