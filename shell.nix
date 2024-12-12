@@ -1,11 +1,17 @@
-{ pkgs ? import (fetchTarball {
-    url = "https://github.com/NixOS/nixpkgs/archive/7881fbfd2e3ed1dfa315fca889b2cfd94be39337.tar.gz";
-    sha256 = "sha256:0na5zykmva0a6valzrrcigp6g0rzq28mi7dqxqr0s3jbn6fm24hq";
-  }) {}
-}:
+with import <nixpkgs> {};
 
-with pkgs;
-
-mkShell{
-    packages = with ocamlPackages; [ocaml findlib dune_3 jasmin-compiler ocaml-lsp merlin ocamlformat];
+mkShell {
+  dontDetectOcamlConflicts = true;
+  packages = [
+    (jasmin-compiler.overrideAttrs (o: {
+      src = fetchurl {
+        url = "https://gitlab.com/jasmin-lang/jasmin-compiler/-/archive/release-2024.07/jasmin-compiler-release-2024.07.tar.bz2";
+    hash = "sha256-kgNbs/8r2g5oX5FITnuRjvIhDp8cX/QVAsjfTYcvSRI=";
+      };
+      sourceRoot = "jasmin-compiler-release-2024.07/compiler";
+      preBuild = "ocamlopt -v";
+    }))
+  ] ++ (with ocaml-ng.ocamlPackages; [
+    ocaml findlib angstrom dune_3 ocaml-lsp ocamlformat merlin
+  ]);
 }
