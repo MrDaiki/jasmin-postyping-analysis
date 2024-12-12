@@ -44,7 +44,8 @@ module SimpleWalker = struct
     val walk_instr : state -> ('info, 'asm) instr -> state * (int, state, 'asm) ginstr
 
     val walk_while :
-         E.align
+         IInfo.t * 'info
+      -> E.align
       -> (int, 'info, 'asm) gstmt
       -> int gexpr
       -> (int, 'info, 'asm) gstmt
@@ -109,7 +110,7 @@ module SimpleWalker = struct
         let out, news, annot = walk_instr_r instr.i_desc instr.i_loc state in
         (news, {i_desc= out; i_loc= instr.i_loc; i_info= annot; i_annot= instr.i_annot})
 
-    and walk_while al body1 e body2 loc prev =
+    and walk_while ((interior_loc, annot), _) al body1 e body2 loc prev =
         let state, _ = walk_stmt body1 prev in
         let state = Mutator.cond loc e state in
         let rec loop prev =
@@ -117,7 +118,7 @@ module SimpleWalker = struct
             let state, body1 = walk_stmt body1 out in
             let state = Mutator.cond loc e state in
             if Mutator.loop_stop_condition prev state then
-              (Cwhile (al, body1, e, body2), state, out)
+              (Cwhile (al, body1, e, ((interior_loc, annot), state), body2), state, out)
             else
               loop (Mutator.merge loc state prev)
         in
@@ -164,7 +165,7 @@ module SimpleWalker = struct
             let state = Mutator.merge loc s1 s2 in
             (Cif (e, th, el), state, prev)
         | Cfor (x, gr, body) -> walk_for x gr body loc prev
-        | Cwhile (al, body1, e, body2) -> walk_while al body1 e body2 loc prev
+        | Cwhile (al, body1, e, info, body2) -> walk_while info al body1 e body2 loc prev
 
     and walk_stmt (stmt : (int, 'info, 'asm) gstmt) (state : Mutator.state) =
         List.fold_left_map walk_instr state stmt

@@ -22,7 +22,7 @@ module FunctionCallPartialVisitor :
 
   let rec visit_for visit_instr _ _ bloc data : data = visit_stmt visit_instr bloc data
 
-  and visit_while visit_instr _ b1 _ b2 data : data =
+  and visit_while visit_instr _ _ b1 _ b2 data : data =
       let data = visit_stmt visit_instr b1 data in
       visit_stmt visit_instr b2 data
 

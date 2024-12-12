@@ -36,6 +36,7 @@ module type PartialVisitor = sig
 
   val visit_while :
        ((annotation, 'asm) Prog.instr -> data -> data)
+    -> IInfo.t * annotation
     -> E.align
     -> (annotation, 'asm) Prog.stmt
     -> int gexpr
@@ -77,7 +78,7 @@ module Visitor = struct
         | Prog.Copn (l, a, sopn, es) -> V.visit_copn l a sopn es data
         | Prog.Cif (e, s1, s2) -> V.visit_if _visit_instr e s1 s2 data
         | Prog.Cfor (i, r, s) -> V.visit_for _visit_instr i r s data
-        | Prog.Cwhile (a, s1, e, s2) -> V.visit_while _visit_instr a s1 e s2 data
+        | Prog.Cwhile (a, s1, e, info, s2) -> V.visit_while _visit_instr info a s1 e s2 data
         | Prog.Ccall (l, f, es) -> V.visit_funcall l f es data
         | Prog.Csyscall (l, s, es) -> V.visit_syscall l s es data
 
