@@ -36,7 +36,13 @@ module type AnalyserLogic = sig
 end
 
 module Analyser = struct
-  module Make (L : AnalyserLogic) = struct
+  module type S = sig
+    type annotation
+
+    val analyse_function : ('info, 'asm) Prog.func -> (annotation, 'asm) Prog.func * annotation
+  end
+
+  module Make (L : AnalyserLogic) : S with type annotation = L.annotation = struct
     type annotation = L.annotation
 
     let analyse_assign (lv : int glval) tag ty (expr : int gexpr) state =
@@ -89,15 +95,15 @@ module Analyser = struct
         loop state
 
     and analyse_while
-        al
-        cond
-        (a, _)
+        (al : E.align)
+        (cond : int gexpr)
+        ((a, _) : IInfo.t * 'info)
         (b1 : (int, 'info, 'asm) gstmt)
         (b2 : (int, 'info, 'asm) gstmt)
         (state : annotation) =
         let _, state = analyse_stmt b1 state in
         let state, _ = L.condition_split cond state in
-        let rec loop prev =
+        let rec loop (prev : annotation) =
             let b2, state_s2 = analyse_stmt b2 prev in
             let b1, state_s1 = analyse_stmt b1 state_s2 in
             let state, _ = L.condition_split cond state_s1 in
@@ -108,8 +114,10 @@ module Analyser = struct
         in
         loop state
 
-    and analyse_instr_r (loc : Location.i_loc) (instr : (int, annotation, 'asm) ginstr_r) state :
-        (int, annotation, 'asm) ginstr_r * annotation =
+    and analyse_instr_r
+        (loc : Location.i_loc)
+        (instr : (int, 'info, 'asm) ginstr_r)
+        (state : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
         match instr with
         | Cassgn (lv, tag, ty, expr) ->
             let annot = L.assign loc lv tag ty expr state in
@@ -131,21 +139,28 @@ module Analyser = struct
         | Cfor (var, range, bloc) -> analyse_for var range bloc state
         | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 state
 
-    and analyse_instr (instr : ('info, 'asm) instr) state : (annotation, 'asm) instr * annotation =
+    and analyse_instr state (instr : ('info, 'asm) instr) : annotation * (annotation, 'asm) instr =
         let instr_r, annot = analyse_instr_r instr.i_loc instr.i_desc state in
-        ({i_desc= instr_r; i_loc= instr.i_loc; i_info= annot; i_annot= instr.i_annot}, annot)
+        (annot, {i_desc= instr_r; i_loc= instr.i_loc; i_info= annot; i_annot= instr.i_annot})
 
     and analyse_stmt (stmt : ('info, 'asm) stmt) annotation =
-        List.fold_left
-          (fun (stmt, annots) instr ->
-            let instr, annots = analyse_instr instr annots in
-            (stmt @ [instr], annots) )
-          ([], annotation) stmt
+        let a, b = List.fold_left_map analyse_instr annotation stmt in
+        (b, a)
 
     let analyse_function (func : ('info, 'asm) Prog.func) :
         (annotation, 'asm) Prog.func * annotation =
         let initial_annot = L.initial_annotation in
         let body, annot = analyse_stmt func.f_body initial_annot in
-        ({func with f_body= body}, annot)
+        ( { f_loc= func.f_loc
+          ; f_annot= func.f_annot
+          ; f_cc= func.f_cc
+          ; f_name= func.f_name
+          ; f_tyin= func.f_tyin
+          ; f_args= func.f_args
+          ; f_body= body
+          ; f_tyout= func.f_tyout
+          ; f_outannot= func.f_outannot
+          ; f_ret= func.f_ret }
+        , annot )
   end
 end
