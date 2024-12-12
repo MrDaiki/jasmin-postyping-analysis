@@ -12,21 +12,22 @@ module FunctionCallPartialVisitor :
 
   let initial_state : data = Sf.empty
 
-  let visit_funcall _ funname _ data : data = Sf.add funname data
+  let visit_funcall (_ : L.i_loc) (_ : annotation) _ funname _ data : data = Sf.add funname data
 
-  let visit_syscall _ _ _ data : data = data
+  let visit_syscall (_ : L.i_loc) (_ : annotation) _ _ _ data : data = data
 
-  let visit_assign _ _ _ _ data : data = data
+  let visit_assign (_ : L.i_loc) (_ : annotation) _ _ _ _ data : data = data
 
-  let visit_copn _ _ _ _ data : data = data
+  let visit_copn (_ : L.i_loc) (_ : annotation) _ _ _ _ data : data = data
 
-  let rec visit_for visit_instr _ _ bloc data : data = visit_stmt visit_instr bloc data
+  let rec visit_for visit_instr (_ : L.i_loc) (_ : annotation) _ _ bloc data : data =
+      visit_stmt visit_instr bloc data
 
-  and visit_while visit_instr _ _ b1 _ b2 data : data =
+  and visit_while visit_instr (_ : L.i_loc) (_ : annotation) _ _ b1 _ b2 data : data =
       let data = visit_stmt visit_instr b1 data in
       visit_stmt visit_instr b2 data
 
-  and visit_if visit_instr _ th el data : data =
+  and visit_if visit_instr (_ : L.i_loc) (_ : annotation) _ th el data : data =
       let data = visit_stmt visit_instr th data in
       visit_stmt visit_instr el data
 
