@@ -1,7 +1,7 @@
 open Jasmin
 open Prog
-open Analyser
 open Domain
+open Analyser
 
 module ReachingDefinitionLogic : AnalyserLogic with type annotation = Domain.t = struct
   type annotation = Domain.t
@@ -23,5 +23,5 @@ module ReachingDefinitionLogic : AnalyserLogic with type annotation = Domain.t =
   let opn loc lvs _ _ _ state = Domain.add (written_lvs lvs) (Instruction loc) state
 end
 
-module ReachingDefinitionAnalyser : Analyser.S with type annotation = Domain.t =
-  Analyser.Make (ReachingDefinitionLogic)
+module ReachingDefinitionAnalyser : TreeAnalyser.S with type annotation = Domain.t =
+  TreeAnalyser.Make (ReachingDefinitionLogic)

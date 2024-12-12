@@ -2,9 +2,11 @@ open Jasmin
 open Functioncalls.Check
 open Staticvars.Check
 open Mutability.Check
+open Initvars.Check
 
 (* let check prog = ud_prog prog ; md_prog prog ; fc_prog prog ; ef_check prog *)
 let check prog =
+    ud_prog prog ;
     fc_prog prog ;
     ignore (fun _ -> iv_prog prog) ;
     md_prog prog

@@ -1,11 +1,11 @@
 open Jasmin
 open Utils
 open Prog
-open Rd.Mutator
 open Types.Sgv
 open Rd.Domain
 open Error
 open Rd.Srdi
+open Rd.Rdanalyser
 
 type check_mode =
 | Strict
@@ -98,7 +98,7 @@ and ud_stmt ?(mode = NotStrict) (locvars : Sv.t) stmt : unit =
     List.iter (ud_instr mode locvars) stmt
 
 let ud_func (f : ('info', 'asm) func) : unit =
-    let f, _ = RdWalker.walk_func f (Domain.from_function_start f) in
+    let f, _ = ReachingDefinitionAnalyser.analyse_function f (Domain.from_function_start f) in
     let locvars = Prog.locals f in
     ud_stmt locvars f.f_body
 

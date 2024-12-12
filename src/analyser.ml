@@ -35,11 +35,12 @@ module type AnalyserLogic = sig
     -> annotation
 end
 
-module Analyser = struct
+module TreeAnalyser = struct
   module type S = sig
     type annotation
 
-    val analyse_function : ('info, 'asm) Prog.func -> (annotation, 'asm) Prog.func * annotation
+    val analyse_function :
+      ('info, 'asm) Prog.func -> annotation -> (annotation, 'asm) Prog.func * annotation
   end
 
   module Make (L : AnalyserLogic) : S with type annotation = L.annotation = struct
@@ -147,10 +148,9 @@ module Analyser = struct
         let a, b = List.fold_left_map analyse_instr annotation stmt in
         (b, a)
 
-    let analyse_function (func : ('info, 'asm) Prog.func) :
+    let analyse_function (func : ('info, 'asm) Prog.func) (_ : annotation) :
         (annotation, 'asm) Prog.func * annotation =
-        let initial_annot = L.initial_annotation in
-        let body, annot = analyse_stmt func.f_body initial_annot in
+        let body, annot = analyse_stmt func.f_body L.initial_annotation in
         ( { f_loc= func.f_loc
           ; f_annot= func.f_annot
           ; f_cc= func.f_cc
