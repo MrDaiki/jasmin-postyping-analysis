@@ -89,10 +89,8 @@ let rec ud_instr (mode : check_mode) (locvars : Sv.t) (instr : ('len, Domain.t, 
     | Cfor (_, r, b) ->
         ud_range mode instr.i_info locvars r ;
         ud_stmt locvars b
-    | Cwhile (_, b1, c, _, b2) ->
-        ud_expr mode instr.i_info locvars c ;
-        ud_stmt locvars b1 ;
-        ud_stmt locvars b2
+    | Cwhile (_, b1, c, (_, info), b2) ->
+        print_domain info ; ud_expr mode info locvars c ; ud_stmt locvars b1 ; ud_stmt locvars b2
 
 and ud_stmt ?(mode = NotStrict) (locvars : Sv.t) stmt : unit =
     List.iter (ud_instr mode locvars) stmt

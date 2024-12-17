@@ -2,14 +2,44 @@ open Jasmin
 open Prog
 
 module type AnalyserLogic = sig
+  (** type of annotation for the program*)
   type annotation
 
-  val initial_annotation : annotation
+  (** Condition of the fixpoint loop
 
+  args :
+  - prev : previous annotation
+  - state : current annotation 
+  
+  returns :
+  - bool : true if the fixpoint is reached, false otherwise
+  *)
   val fixpoint_condition : annotation -> annotation -> bool
 
+  (** Function that split the state depending on a branching in the program.
+  It return two annotations, with the first one being the annotation if the analyser enter the branch.
+  In case of an if statement, the first annotation is the annotation if the condition is true (then bloc), the second one is the annotation if the condition is false (else bloc).
+  In case of a loop statement (for,while), the first annotation is the annotation where the program enter the loop, the second one exit the loop immediately.
+
+  args :
+  - int gexpr : condition of the branching
+  - annotation : annotation before branching
+
+  returns : 
+  - annotation * annotation 
+
+  *)
   val condition_split : int gexpr -> annotation -> annotation * annotation
 
+  (** Function that merge two annotations
+  It is called at the end of branching in a program.
+  args : 
+  - annotation : first annotation
+  - annotation : second annotation
+
+  returns : 
+  - annotation : merged annotation
+  *)
   val merge : annotation -> annotation -> annotation
 
   val funcall : Location.i_loc -> int glvals -> funname -> int gexprs -> annotation -> annotation
@@ -37,16 +67,30 @@ end
 
 module TreeAnalyser = struct
   module type S = sig
+    (** anotation type*)
     type annotation
 
+    (**
+    Entrypoint for analysis. Each instruction is annotated with the entry annotation. Annotation for the next annotation is then computed
+
+    args : 
+    - Prog.func (function to analyse)
+    - annotation (initial annotation that will be modified during analysis)
+
+    returns :
+    - Prog.func (annotated function)
+    - annotation (out annotation)
+    *)
     val analyse_function :
       ('info, 'asm) Prog.func -> annotation -> (annotation, 'asm) Prog.func * annotation
   end
 
+  (** Functor used to build TreeAnalyser modules*)
   module Make (L : AnalyserLogic) : S with type annotation = L.annotation = struct
     type annotation = L.annotation
 
-    let analyse_assign (lv : int glval) tag ty (expr : int gexpr) state =
+    let analyse_assign (loc : Location.i_loc) (lv : int glval) tag ty (expr : int gexpr) state =
+        let state = L.assign loc lv tag ty expr state in
         (Cassgn (lv, tag, ty, expr), state)
 
     let build_for_assign_expr (x : int gvar_i) ((direction, _, _) : int grange) : int gexpr =
@@ -76,10 +120,10 @@ module TreeAnalyser = struct
         let x_ggvar = {gv= x; gs= Slocal} in
         Papp2 (comp_op, Pvar x_ggvar, gend)
 
-    let rec analyse_for variable (range : int grange) body in_state :
+    let rec analyse_for loc variable (range : int grange) body in_state :
         (int, annotation, 'asm) ginstr_r * annotation =
         let analyse_assign =
-            analyse_assign (Lvar variable) AT_none (Location.unloc variable).v_ty
+            analyse_assign loc (Lvar variable) AT_none (Location.unloc variable).v_ty
               (build_for_assign_expr variable range)
         in
         let condition_split = L.condition_split (build_for_condition_expr variable range) in
@@ -103,7 +147,7 @@ module TreeAnalyser = struct
         (b2 : (int, 'info, 'asm) gstmt)
         (state : annotation) =
         let _, state = analyse_stmt b1 state in
-        let state, _ = L.condition_split cond state in
+        let state, out = L.condition_split cond state in
         let rec loop (prev : annotation) =
             let b2, state_s2 = analyse_stmt b2 prev in
             let b1, state_s1 = analyse_stmt b1 state_s2 in
@@ -113,16 +157,15 @@ module TreeAnalyser = struct
             else
               loop (L.merge state prev)
         in
-        loop state
+        let cwhile, state = loop state in
+        (cwhile, L.merge out state)
 
     and analyse_instr_r
         (loc : Location.i_loc)
         (instr : (int, 'info, 'asm) ginstr_r)
         (state : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
         match instr with
-        | Cassgn (lv, tag, ty, expr) ->
-            let annot = L.assign loc lv tag ty expr state in
-            (Cassgn (lv, tag, ty, expr), annot)
+        | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr state
         | Copn (lvs, tag, sopn, es) ->
             let annot = L.opn loc lvs tag sopn es state in
             (Copn (lvs, tag, sopn, es), annot)
@@ -137,7 +180,7 @@ module TreeAnalyser = struct
             let th, annot_th = analyse_stmt th annot_th in
             let el, annot_el = analyse_stmt el annot_el in
             (Cif (expr, th, el), L.merge annot_th annot_el)
-        | Cfor (var, range, bloc) -> analyse_for var range bloc state
+        | Cfor (var, range, bloc) -> analyse_for loc var range bloc state
         | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 state
 
     and analyse_instr state (instr : ('info, 'asm) instr) : annotation * (annotation, 'asm) instr =
@@ -148,9 +191,9 @@ module TreeAnalyser = struct
         let a, b = List.fold_left_map analyse_instr annotation stmt in
         (b, a)
 
-    let analyse_function (func : ('info, 'asm) Prog.func) (_ : annotation) :
+    let analyse_function (func : ('info, 'asm) Prog.func) (annotation : annotation) :
         (annotation, 'asm) Prog.func * annotation =
-        let body, annot = analyse_stmt func.f_body L.initial_annotation in
+        let body, annot = analyse_stmt func.f_body annotation in
         ( { f_loc= func.f_loc
           ; f_annot= func.f_annot
           ; f_cc= func.f_cc

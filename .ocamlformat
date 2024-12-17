@@ -29,3 +29,4 @@ break-fun-decl=fit-or-vertical
 break-cases=all
 if-then-else=vertical
 nested-match=align
+doc-comments=before

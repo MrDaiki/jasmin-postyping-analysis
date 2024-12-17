@@ -24,3 +24,15 @@ let written_lv s = function
     | _ -> s
 
 let written_lvs = List.fold_left written_lv Sv.empty
+
+let print_domain (d : Domain.t) : unit =
+    Mv.iter
+      (fun x s ->
+        Printf.printf "%s: %s \n" x.v_name
+          (Srdi.fold
+             (fun iset acc ->
+               match iset with
+               | Default -> acc ^ "Default "
+               | Instruction i -> acc ^ "Instruction " ^ L.tostring i.base_loc )
+             s "" ) )
+      d
