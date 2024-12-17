@@ -57,7 +57,6 @@ let fc_prog (prog : ('info, 'asm) prog) : unit =
     let _, funcs = prog in
     let data = FunctionCallVisitor.initial_state in
     let funcs_calls = FunctionCallVisitor.visit_prog prog data in
-    Sf.iter (fun f -> Printf.printf "Called : %s\n" f.fn_name) funcs_calls ;
     let non_exported = non_export_functions funcs in
     let diff = Sf.diff non_exported funcs_calls in
     Sf.iter (fun f -> pp_unf_warning Format.std_formatter (UnusedFunction f)) diff
