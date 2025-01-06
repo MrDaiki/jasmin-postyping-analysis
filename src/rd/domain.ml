@@ -17,6 +17,8 @@ module Domain = struct
 
   let included (x : t) (y : t) =
       Mv.for_all (fun x s1 -> Srdi.subset s1 (Mv.find_default Srdi.empty x y)) x
+
+  let forget x = Mv.remove x
 end
 
 let written_lv s = function

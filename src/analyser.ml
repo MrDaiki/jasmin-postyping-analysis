@@ -1,5 +1,6 @@
 open Jasmin
 open Prog
+open Types.Grange
 
 module type AnalyserLogic = sig
   (** type of annotation for the program*)
@@ -41,6 +42,8 @@ module type AnalyserLogic = sig
   - annotation : merged annotation
   *)
   val merge : annotation -> annotation -> annotation
+
+  val remove_proxy_variable : int gvar_i -> annotation -> annotation
 
   val funcall : Location.i_loc -> int glvals -> funname -> int gexprs -> annotation -> annotation
 
@@ -93,51 +96,51 @@ module TreeAnalyser = struct
         let state = L.assign loc lv tag ty expr state in
         (Cassgn (lv, tag, ty, expr), state)
 
-    let build_for_assign_expr (x : int gvar_i) ((direction, _, _) : int grange) : int gexpr =
-        let assign_op =
-            if direction = E.UpTo then
-              E.Oadd Op_int
-            else
-              E.Osub Op_int
-        in
+    let build_for_proxy_variable (x : int gvar_i) : int gvar_i =
+        let x = Location.unloc x in
+        let dummy_name = x.v_name ^ "_proxy" in
+        let nv = GV.mk dummy_name x.v_kind x.v_ty Location._dummy x.v_annot in
+        {pl_loc= Location._dummy; pl_desc= nv}
+
+    let build_for_assign_expr (x : int gvar_i) (r : int grange) : int gexpr =
+        let assign_op = GR.incr_operator r in
         let x_ggvar = {gv= x; gs= Slocal} in
         Papp2 (assign_op, Pvar x_ggvar, Pconst (Z.of_int 1))
 
-    let build_for_condition_expr (x : int gvar_i) ((direction, gstart, gend) : int grange) :
-        int gexpr =
-        let gend =
-            if direction = E.UpTo then
-              gend
-            else
-              gstart
-        in
-        let comp_op =
-            if direction = E.UpTo then
-              E.Olt Cmp_int
-            else
-              E.Ogt Cmp_int
-        in
+    let build_for_condition_expr (x : int gvar_i) (r : int grange) : int gexpr =
+        let gend = GR.last r in
+        let comp_op = GR.cmp_operator r in
         let x_ggvar = {gv= x; gs= Slocal} in
         Papp2 (comp_op, Pvar x_ggvar, gend)
 
     let rec analyse_for loc variable (range : int grange) body in_state :
         (int, annotation, 'asm) ginstr_r * annotation =
-        let analyse_assign =
-            analyse_assign loc (Lvar variable) AT_none (Location.unloc variable).v_ty
-              (build_for_assign_expr variable range)
+        let proxy_var = build_for_proxy_variable variable in
+        let _, state =
+            analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
+              (GR.first range) in_state
         in
-        let condition_split = L.condition_split (build_for_condition_expr variable range) in
-        let _, state = analyse_assign in_state in
+        let condition = build_for_condition_expr proxy_var range in
         let rec loop prev =
+            let state, _ = L.condition_split condition prev in
+            let _, state =
+                analyse_assign loc (Lvar variable) AT_none (Location.unloc variable).v_ty
+                  (Pvar {gv= proxy_var; gs= Slocal})
+                  state
+            in
             let body, state = analyse_stmt body state in
-            let state, _ = condition_split state in
-            let _, state = analyse_assign state in
+            let _, state =
+                analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
+                  (build_for_assign_expr proxy_var range)
+                  state
+            in
             if L.fixpoint_condition prev state then
               (Cfor (variable, range, body), state)
             else
               loop (L.merge prev state)
         in
-        loop state
+        let body, state = loop state in
+        (body, L.remove_proxy_variable proxy_var state)
 
     and analyse_while
         (al : E.align)
@@ -151,9 +154,9 @@ module TreeAnalyser = struct
         let rec loop (prev : annotation) =
             let b2, state_s2 = analyse_stmt b2 prev in
             let b1, state_s1 = analyse_stmt b1 state_s2 in
-            let state, _ = L.condition_split cond state_s1 in
+            let state, out2 = L.condition_split cond state_s1 in
             if L.fixpoint_condition prev state then
-              (Cwhile (al, b1, cond, (a, state_s1), b2), state_s2)
+              (Cwhile (al, b1, cond, (a, state_s1), b2), L.merge state_s2 out2)
             else
               loop (L.merge state prev)
         in
