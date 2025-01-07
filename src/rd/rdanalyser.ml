@@ -6,13 +6,13 @@ open Analyser
 module ReachingDefinitionLogic : AnalyserLogic with type annotation = Domain.t = struct
   type annotation = Domain.t
 
-  let fixpoint_condition prev state = Domain.included state prev
+  let included prev state = Domain.included state prev
 
-  let condition_split _ state = (state, state)
+  let assume _ state = (state, state)
 
   let merge s1 s2 = Domain.join s1 s2
 
-  let remove_proxy_variable var state = Domain.forget (L.unloc var) state
+  let forget var state = Domain.forget (L.unloc var) state
 
   let funcall loc lvs _ _ state = Domain.add (written_lvs lvs) (Instruction loc) state
 

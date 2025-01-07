@@ -6,7 +6,8 @@ module type AnalyserLogic = sig
   (** type of annotation for the program*)
   type annotation
 
-  (** Condition of the fixpoint loop
+  (** Incusion test 
+  Check if an annotation is included in another one. 
 
   args :
   - prev : previous annotation
@@ -15,13 +16,11 @@ module type AnalyserLogic = sig
   returns :
   - bool : true if the fixpoint is reached, false otherwise
   *)
-  val fixpoint_condition : annotation -> annotation -> bool
+  val included : annotation -> annotation -> bool
 
-  (** Function that split the state depending on a branching in the program.
-  It return two annotations, with the first one being the annotation if the analyser enter the branch.
-  In case of an if statement, the first annotation is the annotation if the condition is true (then bloc), the second one is the annotation if the condition is false (else bloc).
-  In case of a loop statement (for,while), the first annotation is the annotation where the program enter the loop, the second one exit the loop immediately.
-
+  (** 
+  Function that return two annotations on a branching of the program.
+  The first assume that the condition is true, the second that it is false
   args :
   - int gexpr : condition of the branching
   - annotation : annotation before branching
@@ -30,7 +29,7 @@ module type AnalyserLogic = sig
   - annotation * annotation 
 
   *)
-  val condition_split : int gexpr -> annotation -> annotation * annotation
+  val assume : int gexpr -> annotation -> annotation * annotation
 
   (** Function that merge two annotations
   It is called at the end of branching in a program.
@@ -43,7 +42,11 @@ module type AnalyserLogic = sig
   *)
   val merge : annotation -> annotation -> annotation
 
-  val remove_proxy_variable : int gvar_i -> annotation -> annotation
+  (** Function that remove a proxy variable from the annotation if necessary 
+    Some part of the tree walking will introduce proxy variables to handle some specific cases.
+    This function is called to remove them from the annotation when they are not needed anymore
+  *)
+  val forget : int gvar_i -> annotation -> annotation
 
   val funcall : Location.i_loc -> int glvals -> funname -> int gexprs -> annotation -> annotation
 
@@ -122,7 +125,7 @@ module TreeAnalyser = struct
         in
         let condition = build_for_condition_expr proxy_var range in
         let rec loop prev =
-            let state, _ = L.condition_split condition prev in
+            let state, result = L.assume condition prev in
             let _, state =
                 analyse_assign loc (Lvar variable) AT_none (Location.unloc variable).v_ty
                   (Pvar {gv= proxy_var; gs= Slocal})
@@ -134,13 +137,13 @@ module TreeAnalyser = struct
                   (build_for_assign_expr proxy_var range)
                   state
             in
-            if L.fixpoint_condition prev state then
-              (Cfor (variable, range, body), state)
+            if L.included prev state then
+              (Cfor (variable, range, body), result)
             else
               loop (L.merge prev state)
         in
         let body, state = loop state in
-        (body, L.remove_proxy_variable proxy_var state)
+        (body, L.forget proxy_var state)
 
     and analyse_while
         (al : E.align)
@@ -150,18 +153,18 @@ module TreeAnalyser = struct
         (b2 : (int, 'info, 'asm) gstmt)
         (state : annotation) =
         let _, state = analyse_stmt b1 state in
-        let state, out = L.condition_split cond state in
+        let state, _ = L.assume cond state in
         let rec loop (prev : annotation) =
             let b2, state_s2 = analyse_stmt b2 prev in
             let b1, state_s1 = analyse_stmt b1 state_s2 in
-            let state, out2 = L.condition_split cond state_s1 in
-            if L.fixpoint_condition prev state then
-              (Cwhile (al, b1, cond, (a, state_s1), b2), L.merge state_s2 out2)
+            let state, result = L.assume cond state_s1 in
+            if L.included prev state then
+              (Cwhile (al, b1, cond, (a, state_s1), b2), result)
             else
               loop (L.merge state prev)
         in
-        let cwhile, state = loop state in
-        (cwhile, L.merge out state)
+        let cwhile, result = loop state in
+        (cwhile, result)
 
     and analyse_instr_r
         (loc : Location.i_loc)
@@ -179,7 +182,7 @@ module TreeAnalyser = struct
             let annot = L.syscall loc lvs sc es state in
             (Csyscall (lvs, sc, es), annot)
         | Cif (expr, th, el) ->
-            let annot_th, annot_el = L.condition_split expr state in
+            let annot_th, annot_el = L.assume expr state in
             let th, annot_th = analyse_stmt th annot_th in
             let el, annot_el = analyse_stmt el annot_el in
             (Cif (expr, th, el), L.merge annot_th annot_el)
