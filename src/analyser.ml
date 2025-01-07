@@ -99,11 +99,8 @@ module TreeAnalyser = struct
         let state = L.assign loc lv tag ty expr state in
         (Cassgn (lv, tag, ty, expr), state)
 
-    let build_for_proxy_variable (x : int gvar_i) : int gvar_i =
-        let x = Location.unloc x in
-        let dummy_name = x.v_name ^ "_proxy" in
-        let nv = GV.mk dummy_name x.v_kind x.v_ty Location._dummy x.v_annot in
-        {pl_loc= Location._dummy; pl_desc= nv}
+    let build_for_proxy_variable loc (x : int gvar_i) : var_i =
+        Location.mk_loc loc (GV.clone (Location.unloc x))
 
     let build_for_assign_expr (x : int gvar_i) (r : int grange) : int gexpr =
         let assign_op = GR.incr_operator r in
@@ -116,9 +113,9 @@ module TreeAnalyser = struct
         let x_ggvar = {gv= x; gs= Slocal} in
         Papp2 (comp_op, Pvar x_ggvar, gend)
 
-    let rec analyse_for loc variable (range : int grange) body in_state :
+    let rec analyse_for (loc : Location.i_loc) variable (range : int grange) body in_state :
         (int, annotation, 'asm) ginstr_r * annotation =
-        let proxy_var = build_for_proxy_variable variable in
+        let proxy_var = build_for_proxy_variable loc.base_loc variable in
         let _, state =
             analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
               (GR.first range) in_state
