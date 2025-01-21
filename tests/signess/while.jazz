@@ -1,0 +1,12 @@
+
+
+
+export fn test() {
+
+    inline int i = 20;
+
+    while (i >= 0) {
+        i -=1;
+    }
+
+}

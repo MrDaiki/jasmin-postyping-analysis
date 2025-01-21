@@ -1,0 +1,14 @@
+export fn test() {
+
+    inline int i = 20;
+    inline int k = 0;
+    
+    while (i >= 0) {
+        i -=1;
+        inline int j = 20;
+        while (j >= 0) {
+            j -=1;
+            k = j - i;
+        }
+    }
+}
