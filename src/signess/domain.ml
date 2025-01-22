@@ -6,14 +6,15 @@ module SignDomain = struct
   type t = signess Mv.t option
 
   let empty func =
-      Some
-        (List.fold_left
-           (fun env var ->
-             match var.v_ty with
-             | Bty Int -> Mv.add var Undefined env
-             | _ -> env )
-           Mv.empty
-           (func.f_args @ Sv.to_list (locals func)) )
+      let mv =
+          List.fold_left
+            (fun env var ->
+              match var.v_ty with
+              | Bty Int -> Mv.add var Integer env
+              | _ -> env )
+            Mv.empty func.f_args
+      in
+      Some (List.fold_left (fun env var -> Mv.add var Undefined env) mv (Sv.to_list (locals func)))
 
   let erase (x : var) (s : signess) (env : t) : t =
       match s with
