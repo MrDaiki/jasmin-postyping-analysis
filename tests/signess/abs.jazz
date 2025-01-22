@@ -1,0 +1,16 @@
+
+
+inline fn abs(reg int x) -> reg u64 {
+    
+    reg int y;
+    
+    if (x < 0) {
+        y=-x;
+    }
+
+    else {
+        y=x;
+    }
+    
+    return y;
+}
