@@ -6,6 +6,8 @@ open Analyser
 module ReachingDefinitionLogic : AnalyserLogic with type annotation = Domain.t = struct
   type annotation = Domain.t
 
+  let pp_annot fmt = Domain.pp fmt
+
   let included prev state = Domain.included state prev
 
   let assume _ state = (state, state)

@@ -16,6 +16,9 @@ module type AnalyserLogic = sig
   returns :
   - bool : true if the fixpoint is reached, false otherwise
   *)
+
+  val pp_annot : Format.formatter -> Location.i_loc * annotation -> unit
+
   val included : annotation -> annotation -> bool
 
   (** 

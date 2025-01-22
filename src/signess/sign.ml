@@ -184,12 +184,12 @@ let ( * ) s1 s2 =
 
 let ( / ) s1 s2 = s1 * inv s2
 
-let signess_to_string = function
-    | Undefined -> "Undefined"
-    | StrictPositive -> "StrictPositive"
-    | StrictNegative -> "StrictNegative"
-    | Zero -> "Zero"
-    | Negative -> "Negative"
-    | Positive -> "Positive"
-    | NonZero -> "NonZero"
-    | Integer -> "Integer"
+let pp_signess fmt = function
+    | Undefined -> Format.fprintf fmt "Undefined"
+    | StrictPositive -> Format.fprintf fmt "StrictPositive"
+    | StrictNegative -> Format.fprintf fmt "StrictNegative"
+    | Zero -> Format.fprintf fmt "Zero"
+    | Negative -> Format.fprintf fmt "Negative"
+    | Positive -> Format.fprintf fmt "Positive"
+    | NonZero -> Format.fprintf fmt "NonZero"
+    | Integer -> Format.fprintf fmt "Integer"

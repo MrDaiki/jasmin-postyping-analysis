@@ -10,7 +10,7 @@ module SignDomain = struct
         (List.fold_left
            (fun env var ->
              match var.v_ty with
-             | Bty Int -> Mv.add var Integer env
+             | Bty Int -> Mv.add var Undefined env
              | _ -> env )
            Mv.empty
            (func.f_args @ Sv.to_list (locals func)) )
@@ -85,10 +85,16 @@ module SignDomain = struct
       | None -> t
       | Some t -> Some (Mv.remove x t)
 
-  let print_domain (env : t) : unit =
+  let pp fmt ((_, env) : L.i_loc * t) : unit =
       match env with
-      | None -> Format.printf "No possible execution for this function"
-      | Some env -> Mv.iter (fun k v -> Format.printf "%s: %s\n" k.v_name (signess_to_string v)) env
+      | None -> Format.fprintf fmt "None"
+      | Some env ->
+          let item_list = Mv.bindings env in
+          Format.fprintf fmt "%a\n"
+            (Format.pp_print_list
+               ~pp_sep:(fun fmt () -> Format.fprintf fmt ", ")
+               (fun fmt (x, s) -> Format.fprintf fmt "%s: %a" x.v_name pp_signess s) )
+            item_list
 end
 
 let sign_integer (z : Z.t) : signess =

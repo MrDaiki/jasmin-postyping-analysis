@@ -1,15 +1,6 @@
 open Jasmin
 open Signess.Analyser
-open Signess.Domain
 open Prog
-
-let check (prog : ('info, 'asm) prog) =
-    let annotated_funcs = sg_prog prog in
-    List.iter
-      (fun (f, dom) ->
-        Format.printf "%s:@." f.f_name.fn_name ;
-        SignDomain.print_domain dom )
-      annotated_funcs
 
 module Arch =
   ( val let use_set0 = true and use_lea = false in
@@ -18,6 +9,13 @@ module Arch =
           (val CoreArchFactory.core_arch_x86 ~use_lea ~use_set0 call_conv)
         in
         (module Arch_full.Arch_from_Core_arch (C) : Arch_full.Arch) )
+
+let check ((gbs, funcs) : ('info, 'asm) prog) =
+    let annotated_funcs = sg_prog (gbs, funcs) in
+    let funcs = List.map (fun (f, _) -> f) annotated_funcs in
+    Printer.pp_iprog ~debug:true SignAnalyserLogic.pp_annot Arch.reg_size Arch.asmOp
+      Format.std_formatter (gbs, funcs) ;
+    ()
 
 let () =
     try

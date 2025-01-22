@@ -96,6 +96,8 @@ let lvs_int lvs = List.filter_map lv_int lvs
 module SignAnalyserLogic : AnalyserLogic with type annotation = SignDomain.t = struct
   type annotation = SignDomain.t
 
+  let pp_annot fmt = SignDomain.pp fmt
+
   let included prev state = SignDomain.included state prev
 
   let assume cond state = condition_analysis cond state

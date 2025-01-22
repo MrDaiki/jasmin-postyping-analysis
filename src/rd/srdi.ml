@@ -15,6 +15,10 @@ module RdIloc = struct
       | Default, _ -> -1
       | _, Default -> 1
       | Instruction x, Instruction y -> Stdlib.Int.compare x.uid_loc y.uid_loc
+
+  let pp fmt = function
+      | Default -> Format.fprintf fmt "?"
+      | Instruction i -> Format.fprintf fmt "%a" pp_iloc_short i
 end
 
 module Srdi = Set.Make (RdIloc)

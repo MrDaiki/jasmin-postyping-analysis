@@ -1,6 +1,8 @@
 open Jasmin
 open Prog
 open Srdi
+open Utils
+open Format
 
 module Domain = struct
   type t = Srdi.t Mv.t
@@ -19,6 +21,14 @@ module Domain = struct
       Mv.for_all (fun x s1 -> Srdi.subset s1 (Mv.find_default Srdi.empty x y)) x
 
   let forget x = Mv.remove x
+
+  let pp fmt ((_, d) : Location.i_loc * t) =
+      Mv.iter
+        (fun k v ->
+          Format.fprintf fmt "%s : %a@." k.v_name
+            (pp_print_list ~pp_sep:(fun fmt () -> Format.fprintf fmt ",") RdIloc.pp)
+            (Srdi.to_list v) )
+        d
 end
 
 let written_lv s = function
