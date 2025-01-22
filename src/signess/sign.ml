@@ -15,14 +15,24 @@ let extend_zeros s =
     | NonZero -> Integer
     | a -> a
 
+let not = function
+    | Undefined -> Integer
+    | StrictPositive -> Negative
+    | StrictNegative -> Positive
+    | Zero -> NonZero
+    | Negative -> StrictPositive
+    | Positive -> StrictNegative
+    | NonZero -> Zero
+    | Integer -> Undefined
+
 let neg s =
     match s with
     | Undefined -> Undefined
-    | StrictPositive -> Negative
-    | StrictNegative -> Positive
+    | StrictPositive -> StrictNegative
+    | StrictNegative -> StrictPositive
     | Zero -> Zero
-    | Negative -> StrictPositive
-    | Positive -> StrictNegative
+    | Negative -> Positive
+    | Positive -> Negative
     | NonZero -> NonZero
     | Integer -> Integer
 
@@ -31,11 +41,70 @@ let inv s =
     | Zero -> Undefined
     | s -> s
 
+let sign_included s1 s2 =
+    match (s1, s2) with
+    | Undefined, _ -> true
+    | _, Undefined -> false
+    | _, Integer -> true
+    | Integer, (Zero | NonZero | StrictNegative | Negative | StrictPositive | Positive) -> false
+    | Zero, Zero -> true
+    | NonZero, NonZero -> true
+    | StrictNegative, StrictNegative -> true
+    | StrictNegative, (StrictPositive | Zero | Positive) -> false
+    | StrictPositive, StrictPositive -> true
+    | StrictPositive, (StrictNegative | Zero | Negative) -> false
+    | (StrictNegative | Zero | Negative), Negative -> true
+    | (StrictPositive | Zero | Positive), Positive -> true
+    | (StrictNegative | StrictPositive), NonZero -> true
+    | Zero, (StrictNegative | StrictPositive | NonZero) -> false
+    | Negative, (StrictPositive | Positive | NonZero | StrictNegative | Zero) -> false
+    | Positive, (StrictNegative | Negative | NonZero | StrictPositive | Zero) -> false
+    | NonZero, (StrictNegative | Negative | StrictPositive | Positive | Zero) -> false
+
+let ( && ) s1 s2 =
+    match (s1, s2) with
+    | Undefined, _
+     |_, Undefined ->
+        Undefined
+    | Integer, a
+     |a, Integer ->
+        a
+    | Zero, (StrictNegative | NonZero | StrictPositive)
+     |(StrictNegative | NonZero | StrictPositive), Zero ->
+        Undefined
+    | Zero, (Negative | Positive | Zero)
+     |(Negative | Positive), Zero ->
+        Zero
+    | StrictNegative, (StrictPositive | Positive)
+     |(StrictPositive | Positive), StrictNegative ->
+        Undefined
+    | StrictNegative, (StrictNegative | Negative | NonZero)
+     |(Negative | NonZero), StrictNegative ->
+        StrictNegative
+    | StrictPositive, Negative
+     |Negative, StrictPositive ->
+        Undefined
+    | StrictPositive, (StrictPositive | NonZero | Positive)
+     |(NonZero | Positive), StrictPositive ->
+        StrictPositive
+    | Negative, Positive
+     |Positive, Negative ->
+        Zero
+    | NonZero, Negative
+     |Negative, NonZero ->
+        StrictNegative
+    | NonZero, Positive
+     |Positive, NonZero ->
+        StrictPositive
+    | NonZero, NonZero -> NonZero
+    | Negative, Negative -> Negative
+    | Positive, Positive -> Positive
+
 let ( || ) s1 s2 =
     match (s1, s2) with
     | Undefined, a
      |a, Undefined ->
-        a (* uncorrect *)
+        a
     | Integer, _
      |_, Integer ->
         Integer
@@ -114,3 +183,13 @@ let ( * ) s1 s2 =
     | Integer, _ -> Integer
 
 let ( / ) s1 s2 = s1 * inv s2
+
+let signess_to_string = function
+    | Undefined -> "Undefined"
+    | StrictPositive -> "StrictPositive"
+    | StrictNegative -> "StrictNegative"
+    | Zero -> "Zero"
+    | Negative -> "Negative"
+    | Positive -> "Positive"
+    | NonZero -> "NonZero"
+    | Integer -> "Integer"

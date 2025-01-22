@@ -1,6 +1,6 @@
 
 
-inline fn abs(reg int x) -> reg u64 {
+inline fn abs(reg int x) -> reg int {
     
     reg int y;
     

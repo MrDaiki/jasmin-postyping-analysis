@@ -149,16 +149,14 @@ module TreeAnalyser = struct
         (b1 : (int, 'info, 'asm) gstmt)
         (b2 : (int, 'info, 'asm) gstmt)
         (state : annotation) =
-        let _, state = analyse_stmt b1 state in
-        let state, _ = L.assume cond state in
         let rec loop (prev : annotation) =
-            let b2, state_s2 = analyse_stmt b2 prev in
-            let b1, state_s1 = analyse_stmt b1 state_s2 in
+            let b1, state_s1 = analyse_stmt b1 prev in
             let state, result = L.assume cond state_s1 in
-            if L.included prev state then
+            let b2, state_s2 = analyse_stmt b2 state in
+            if L.included prev state_s2 then
               (Cwhile (al, b1, cond, (a, state_s1), b2), result)
             else
-              loop (L.merge state prev)
+              loop (L.merge state_s2 prev)
         in
         let cwhile, result = loop state in
         (cwhile, result)

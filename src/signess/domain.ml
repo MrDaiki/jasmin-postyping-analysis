@@ -3,21 +3,92 @@ open Prog
 open Sign
 
 module SignDomain = struct
-  type t = signess Mv.t
+  type t = signess Mv.t option
 
-  let update (x : var) (s : signess) (env : t) : t = Mv.add x s env
+  let empty func =
+      Some
+        (List.fold_left
+           (fun env var ->
+             match var.v_ty with
+             | Bty Int -> Mv.add var Integer env
+             | _ -> env )
+           Mv.empty
+           (func.f_args @ Sv.to_list (locals func)) )
 
-  let get (x : var) (env : t) : signess = Mv.find x env
+  let erase (x : var) (s : signess) (env : t) : t =
+      match s with
+      | Undefined -> None
+      | _ ->
+      match env with
+      | None -> None
+      | Some env -> Some (Mv.modify_def Integer x (fun _ -> s) env)
+
+  let reduce (x : var) (s : signess) (env : t) : t =
+      match s with
+      | Undefined -> None
+      | _ ->
+      match env with
+      | None -> None
+      | Some env -> Some (Mv.modify_def Integer x (fun sign -> s && sign) env)
+
+  let get (x : var) (env : t) : signess option =
+      match env with
+      | None -> None
+      | Some env -> Some (Mv.find_default Integer x env)
+
+  let intersect (env1 : t) (env2 : t) =
+      match (env1, env2) with
+      | None, _
+       |_, None ->
+          None
+      | Some env1, Some env2 ->
+          Some
+            (Mv.merge
+               (fun _ (s1 : signess option) (s2 : signess option) ->
+                 match (s1, s2) with
+                 | Some s1, Some s2 -> Some (s1 && s2)
+                 | _, None
+                  |None, _ ->
+                     None )
+               env1 env2 )
 
   let merge (env1 : t) (env2 : t) : t =
-      Mv.merge
-        (fun _ s1 s2 ->
-          match (s1, s2) with
-          | Some s1, Some s2 -> Some (s1 || s2)
-          | s, None
-           |None, s ->
-              s )
-        env1 env2
+      match (env1, env2) with
+      | None, a
+       |a, None ->
+          a
+      | Some env1, Some env2 ->
+          Some
+            (Mv.merge
+               (fun _ s1 s2 ->
+                 match (s1, s2) with
+                 | Some s1, Some s2 -> Some (s1 || s2)
+                 | s, None
+                  |None, s ->
+                     s )
+               env1 env2 )
+
+  let included (x : t) (y : t) =
+      match (x, y) with
+      | None, _ -> true
+      | _, None -> false
+      | Some x, Some y ->
+          Mv.for_all
+            (fun x s1 ->
+              match Mv.find_opt x y with
+              | None -> false
+              | Some s2 -> sign_included s1 s2 )
+            x
+
+  let remove x (t : t) : t =
+      match t with
+      | None -> t
+      | Some t -> Some (Mv.remove x t)
+
+  let print_domain (env : t) : unit =
+      match env with
+      | None -> Format.printf "No possible execution for this function"
+      | Some env -> Mv.iter (fun k v -> Format.printf "%s: %s\n" k.v_name (signess_to_string v)) env
 end
 
 let sign_integer (z : Z.t) : signess =
@@ -31,10 +102,13 @@ let rec sign_expression (e : expr) registry : signess =
     | Pconst z -> sign_integer z
     | Pbool _ -> Undefined
     | Parr_init _ -> Undefined
-    | Pvar var -> SignDomain.get (L.unloc var.gv) registry
-    | Pget (_, _, _, _, _) -> Undefined
+    | Pvar var -> (
+        match SignDomain.get (L.unloc var.gv) registry with
+        | Some s -> s
+        | None -> Undefined )
+    | Pget (_, _, _, _, _) -> Integer
     | Psub (_, _, _, _, _) -> Undefined
-    | Pload (_, _, _, _) -> Undefined
+    | Pload (_, _, _, _) -> Integer
     | Papp1 (op, expr) -> (
         match op with
         | Oneg _ -> neg (sign_expression expr registry)

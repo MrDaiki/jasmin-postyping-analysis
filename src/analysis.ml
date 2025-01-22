@@ -1,15 +1,15 @@
 open Jasmin
-open Functioncalls.Check
-open Staticvars.Check
-open Mutability.Check
-open Initvars.Check
+open Signess.Analyser
+open Signess.Domain
+open Prog
 
-(* let check prog = ud_prog prog ; md_prog prog ; fc_prog prog ; ef_check prog *)
-let check prog =
-    ud_prog prog ;
-    fc_prog prog ;
-    ignore (fun _ -> iv_prog prog) ;
-    md_prog prog
+let check (prog : ('info, 'asm) prog) =
+    let annotated_funcs = sg_prog prog in
+    List.iter
+      (fun (f, dom) ->
+        Format.printf "%s:@." f.f_name.fn_name ;
+        SignDomain.print_domain dom )
+      annotated_funcs
 
 module Arch =
   ( val let use_set0 = true and use_lea = false in
