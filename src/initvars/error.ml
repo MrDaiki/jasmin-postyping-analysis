@@ -1,12 +1,11 @@
 open Jasmin
 open Prog
 
-type uv_error = VarNotIntialized of int gvar_i
+type uv_error = VarNotIntialized of var
 
 let pp_uderror fmt error =
     match error with
     | VarNotIntialized v ->
-        let v = L.unloc v in
         Format.fprintf fmt "Variable '%s' (declared at : %s) not initialized" v.v_name
           (L.tostring v.v_dloc)
 

@@ -1,103 +1,136 @@
 open Jasmin
-open Utils
 open Prog
-open Types.Sgv
-open Rd.Domain
-open Error
-open Rd.Srdi
+open Visitor
+open Programvisitor
+open Helper
 open Rd.Rdanalyser
 
-type check_mode =
-| Strict
-| NotStrict
+module InitVarPartialVisitor :
+  PartialVisitor with type data = iv_data and type annotation = Rd.Domain.Domain.t = struct
+  type data = iv_data
 
-let is_local (v : int ggvar) =
-    match v.gs with
-    | Slocal -> true
-    | _ -> false
+  type annotation = Rd.Domain.Domain.t
 
-let rec lvars_e (e : expr) : Sgv.t =
-    match e with
-    | Pconst _ -> Sgv.empty
-    | Pbool _ -> Sgv.empty
-    | Parr_init _ -> Sgv.empty
-    | Pvar var ->
-        if is_local var then
-          Sgv.singleton var.gv
+  let initial_state : data = {locals= Sv.empty; mode= Strict; errors= []}
+
+  let visit_funcall
+      (_ : L.i_loc)
+      (domain : annotation)
+      (_ : int glvals)
+      (_ : funname)
+      (params : int gexprs)
+      (data : data) : data =
+      List.fold_left (fun d e -> check_iv_expr d domain e) data params
+
+  let visit_syscall
+      (_ : L.i_loc)
+      (domain : annotation)
+      (_ : int glvals)
+      (_ : 'asm Syscall_t.syscall_t)
+      (params : int gexprs)
+      (data : data) : data =
+      List.fold_left (fun d e -> check_iv_expr d domain e) data params
+
+  let visit_assign
+      (_ : L.i_loc)
+      (domain : annotation)
+      (_ : int glval)
+      (_ : E.assgn_tag)
+      (_ : int gty)
+      (expr : int gexpr)
+      (data : data) : data =
+      check_iv_expr data domain expr
+
+  let visit_copn
+      (_ : L.i_loc)
+      (domain : annotation)
+      (_ : int glvals)
+      (_ : E.assgn_tag)
+      (_ : 'asm Sopn.sopn)
+      (exprs : int gexprs)
+      (data : data) : data =
+      List.fold_left (fun d e -> check_iv_expr d domain e) data exprs
+
+  let rec visit_for
+      (visit_instr : (annotation, 'asm) instr -> data -> data)
+      (_ : L.i_loc)
+      (domain : annotation)
+      (_ : int gvar_i)
+      ((_, r1, r2) : int grange)
+      (stmt : (annotation, 'asm) stmt)
+      (data : data) : data =
+      let data = check_iv_expr data domain r1 in
+      let data = check_iv_expr data domain r2 in
+      visit_stmt visit_instr stmt data
+
+  and visit_while
+      (visit_instr : (annotation, 'asm) instr -> data -> data)
+      (_ : L.i_loc)
+      (_ : annotation)
+      ((_, domain) : IInfo.t * annotation)
+      (_ : E.align)
+      (b1 : (annotation, 'asm) stmt)
+      (cond : int gexpr)
+      (b2 : (annotation, 'asm) stmt)
+      (data : data) : data =
+      let data = visit_stmt visit_instr b1 data in
+      let data = check_iv_expr data domain cond in
+      visit_stmt visit_instr b2 data
+
+  and visit_if
+      (visit_instr : (annotation, 'asm) instr -> data -> data)
+      (_ : L.i_loc)
+      (domain : annotation)
+      (cond : int gexpr)
+      (th : (annotation, 'asm) stmt)
+      (el : (annotation, 'asm) stmt)
+      (data : data) : data =
+      let data = check_iv_expr data domain cond in
+      let d1 = visit_stmt visit_instr th data in
+      visit_stmt visit_instr el d1
+
+  and visit_stmt visit_instr stmt data : data =
+      List.fold_left (fun d i -> visit_instr i d) data stmt
+
+  let visit_function
+      (visit_instr : (annotation, 'asm) instr -> data -> data)
+      (func : (annotation, 'asm) func)
+      data : data =
+      let data = {data with locals= Prog.locals func} in
+      visit_stmt visit_instr func.f_body data
+
+  let visit_prog
+      (visit_instr : (annotation, 'asm) instr -> data -> data)
+      ((_, funcs) : (annotation, 'asm) prog)
+      data : data =
+      List.fold_left (fun d f -> visit_function visit_instr f d) data funcs
+end
+
+module InitVarVisitor :
+  Visitor.S
+    with type annotation = InitVarPartialVisitor.annotation
+     and type data = InitVarPartialVisitor.data =
+  Visitor.Make (InitVarPartialVisitor)
+
+let iv_prog ((globs, funcs) : ('info, 'asm) prog) (strict : bool) =
+    let strict =
+        if strict then
+          Strict
         else
-          Sgv.empty
-    | Pget (_, _, _, var, expr) ->
-        let eset = lvars_e expr in
-        if is_local var then
-          Sgv.add var.gv eset
-        else
-          eset
-    | Psub (_, _, _, var, expr) ->
-        let eset = lvars_e expr in
-        if is_local var then
-          Sgv.add var.gv eset
-        else
-          eset
-    | Pload (_, _, var, expr) ->
-        let eset = lvars_e expr in
-        Sgv.add var eset (*this var is always local*)
-    | Papp1 (_, expr) -> lvars_e expr
-    | Papp2 (_, l, r) -> Sgv.union (lvars_e l) (lvars_e r)
-    | PappN (_, exprs) -> List.fold (fun sl e -> Sgv.union sl (lvars_e e)) Sgv.empty exprs
-    | Pif (_, e1, e2, e3) -> Sgv.union (lvars_e e1) (Sgv.union (lvars_e e2) (lvars_e e3))
-
-let check_ud_var (mode : check_mode) (dom : Domain.t) (modified_local_var : 'len gvar_i) : unit =
-    match Mv.find_opt (L.unloc modified_local_var) dom with
-    | None -> assert false (*This case is not possible with current version*)
-    | Some iset ->
-    match mode with
-    | Strict ->
-        if Srdi.mem Default iset then
-          rs_uderror ~loc:(L.loc modified_local_var) (VarNotIntialized modified_local_var)
-    | NotStrict ->
-        if Srdi.equal iset (Srdi.singleton Default) then
-          rs_uderror ~loc:(L.loc modified_local_var) (VarNotIntialized modified_local_var)
-
-let ud_expr (mode : check_mode) (dom : Domain.t) (locvars : Sv.t) (e : expr) : unit =
-    let found_vars = lvars_e e in
-    let used_local_vars =
-        Sgv.fold
-          (fun e sl ->
-            if Sv.mem (L.unloc e) locvars then
-              Sgv.add e sl
-            else
-              sl )
-          found_vars Sgv.empty
+          NotStrict
     in
-    Sgv.iter (check_ud_var mode dom) used_local_vars
-
-let ud_range (mode : check_mode) (dom : Domain.t) (locvars : Sv.t) ((_, e1, e2) : 'len grange) :
-    unit =
-    ud_expr mode dom locvars e1 ; ud_expr mode dom locvars e2
-
-let rec ud_instr (mode : check_mode) (locvars : Sv.t) (instr : ('len, Domain.t, 'asm) ginstr) : unit
-    =
-    match instr.i_desc with
-    | Cassgn (_, _, _, expr) -> ud_expr mode instr.i_info locvars expr
-    | Copn (_, _, _, exprs) -> List.iter (ud_expr mode instr.i_info locvars) exprs
-    | Csyscall (_, _, exprs) -> List.iter (ud_expr mode instr.i_info locvars) exprs
-    | Ccall (_, _, exprs) -> List.iter (ud_expr mode instr.i_info locvars) exprs
-    | Cif (expr, b1, b2) ->
-        ud_expr mode instr.i_info locvars expr ;
-        ud_stmt locvars b1 ;
-        ud_stmt locvars b2
-    | Cfor (_, r, b) ->
-        ud_range mode instr.i_info locvars r ;
-        ud_stmt locvars b
-    | Cwhile (_, b1, c, (_, info), b2) ->
-        ud_expr mode info locvars c ; ud_stmt locvars b1 ; ud_stmt locvars b2
-
-and ud_stmt ?(mode = NotStrict) (locvars : Sv.t) stmt : unit =
-    List.iter (ud_instr mode locvars) stmt
-
-let ud_func (f : ('info', 'asm) func) : unit =
-    let f, _ = ReachingDefinitionAnalyser.analyse_function f (Domain.from_function_start f) in
-    let locvars = Prog.locals f in
-    ud_stmt locvars f.f_body
-
-let ud_prog ((_, funcs) : ('info', 'asm) prog) : unit = List.iter ud_func funcs
+    let funcs =
+        List.map
+          (fun f ->
+            let f, _ =
+                ReachingDefinitionAnalyser.analyse_function f
+                  (Rd.Domain.Domain.from_function_start f)
+            in
+            f )
+          funcs
+    in
+    let prog = (globs, funcs) in
+    let data = InitVarVisitor.initial_state in
+    let data = {data with mode= strict} in
+    let data = InitVarVisitor.visit_prog prog data in
+    List.rev data.errors

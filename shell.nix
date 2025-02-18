@@ -12,6 +12,6 @@ mkShell {
       preBuild = "ocamlopt -v";
     }))
   ] ++ (with ocaml-ng.ocamlPackages; [
-    ocaml findlib angstrom dune_3 ocaml-lsp ocamlformat merlin
+    ocaml findlib angstrom dune_3 ocaml-lsp ocamlformat merlin cmdliner
   ]);
 }

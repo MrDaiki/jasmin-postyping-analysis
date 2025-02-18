@@ -2,7 +2,8 @@ open Jasmin
 open Prog
 open Warning
 open FInfo
-open Visitor.Programvisitor
+open Visitor
+open Programvisitor
 
 module FunctionCallPartialVisitor :
   PartialVisitor with type data = Sf.t and type annotation = unit = struct
