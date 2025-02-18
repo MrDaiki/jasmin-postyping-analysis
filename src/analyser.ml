@@ -201,6 +201,7 @@ module TreeAnalyser = struct
         ( { f_loc= func.f_loc
           ; f_annot= func.f_annot
           ; f_cc= func.f_cc
+          ; f_info= annot
           ; f_name= func.f_name
           ; f_tyin= func.f_tyin
           ; f_args= func.f_args
