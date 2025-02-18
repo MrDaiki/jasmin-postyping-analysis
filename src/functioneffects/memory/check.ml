@@ -1,7 +1,7 @@
 open Jasmin
 open Prog
 open Memoryeffect
-open Mutator
+open MemoryEffectVisitor
 
 let is_reduced map =
     Mf.for_all
@@ -22,7 +22,7 @@ let reduce_dependency (deps : Sf.t) (effects : memory_effect Mf.t) : memory_effe
         | Depends _ -> Depends (Sf.singleton dep) || effect )
       deps None
 
-let rec reduce_memory_effect (effects : memory_effect Mf.t) : memory_effect Mf.t =
+let rec reduce (effects : memory_effect Mf.t) : memory_effect Mf.t =
     let new_map =
         Mf.map
           (fun effect ->
@@ -35,8 +35,8 @@ let rec reduce_memory_effect (effects : memory_effect Mf.t) : memory_effect Mf.t
     if is_reduced new_map then
       new_map
     else
-      reduce_memory_effect new_map
+      reduce new_map
 
 let mem_prog (prog : ('info, 'asm) prog) =
     let memory_effects = memory_effects prog in
-    reduce_memory_effect memory_effects
+    reduce memory_effects

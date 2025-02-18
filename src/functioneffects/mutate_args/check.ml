@@ -2,7 +2,7 @@ open Jasmin
 open Prog
 open Utils
 open Mutparameffect
-open Mutator
+open MutableArgsVisitor
 
 let is_reduced (varmap : mut_param_effect Mv.t) : bool =
     Mv.for_all
@@ -40,32 +40,9 @@ let rec reduce (varmap : mut_param_effect Mv.t) : mut_param_effect Mv.t =
       reduce new_map
 
 let mp_prog (prog : ('info, 'asm) prog) =
-    let m = Mutator.build_mutparam_mutator prog in
-    let (module Walker) = Mutator.build_walker m in
     let _, funcs = prog in
     let varmap =
-        List.fold
-          (fun acc func ->
-            let intial_state =
-                List.fold
-                  (fun acc' var ->
-                    if is_mutable_ptr var then
-                      Mv.add var None acc'
-                    else
-                      acc' )
-                  Mv.empty func.f_args
-            in
-            let _, varmap = Walker.walk_func func intial_state in
-            Mv.merge
-              (fun _ a b ->
-                match (a, b) with
-                | None, None -> None
-                | Some x, None
-                 |None, Some x ->
-                    Some x
-                | _ -> assert false )
-              acc varmap )
-          Mv.empty funcs
+        (MutableArgsVisitor.visit_prog prog MutableArgsVisitor.initial_state).mutable_params_effect
     in
     let varmap = reduce varmap in
     List.fold
