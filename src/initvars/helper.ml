@@ -19,20 +19,25 @@ let is_local (v : int ggvar) =
     | _ -> false
 
 let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data =
-    match Mv.find_opt (L.unloc var) domain with
-    | None -> assert false (*This case is not possible with current version*)
-    | Some iset ->
-    match data.mode with
-    | Strict ->
-        if Srdi.mem Default iset then
-          {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
-        else
-          data
-    | NotStrict ->
-        if Srdi.equal iset (Srdi.singleton Default) then
-          {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
-        else
-          data
+    if Sv.mem (L.unloc var) data.locals then
+      match Mv.find_opt (L.unloc var) domain with
+      | None ->
+          Format.printf "Var %s not found in domain\n" (L.unloc var).v_name ;
+          assert false (*This case is not possible with current version*)
+      | Some iset ->
+      match data.mode with
+      | Strict ->
+          if Srdi.mem Default iset then
+            {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
+          else
+            data
+      | NotStrict ->
+          if Srdi.equal iset (Srdi.singleton Default) then
+            {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
+          else
+            data
+    else
+      data
 
 let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_data =
     match expr with
@@ -46,22 +51,13 @@ let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_da
           data
     | Pget (_, _, _, var, expr) ->
         let data = check_iv_expr data domain expr in
-        if Sv.mem (L.unloc var.gv) data.locals then
-          check_iv_error data domain var.gv
-        else
-          data
+        check_iv_error data domain var.gv
     | Psub (_, _, _, var, expr) ->
         let data = check_iv_expr data domain expr in
-        if Sv.mem (L.unloc var.gv) data.locals then
-          check_iv_error data domain var.gv
-        else
-          data
+        check_iv_error data domain var.gv
     | Pload (_, _, var, expr) ->
         let data = check_iv_expr data domain expr in
-        if Sv.mem (L.unloc var) data.locals then
-          check_iv_error data domain var
-        else
-          data
+        check_iv_error data domain var
     | Papp1 (_, expr) -> check_iv_expr data domain expr
     | Papp2 (_, l, r) -> check_iv_expr (check_iv_expr data domain l) domain r
     | PappN (_, exprs) -> List.fold_left (fun d e -> check_iv_expr d domain e) data exprs
