@@ -97,7 +97,8 @@ module InitVarPartialVisitor :
       (func : (annotation, 'asm) func)
       data : data =
       let data = {data with locals= Prog.locals func} in
-      visit_stmt visit_instr func.f_body data
+      let data = visit_stmt visit_instr func.f_body data in
+      List.fold_left (fun d -> check_iv_error d func.f_info) data func.f_ret
 
   let visit_prog
       (visit_instr : (annotation, 'asm) instr -> data -> data)
