@@ -2,7 +2,7 @@ open Jasmin
 open Prog
 open Types.Grange
 
-module type AnalyserLogic = sig
+module type ForwardAnalyserLogic = sig
   (** type of annotation for the program*)
   type annotation
 
@@ -102,7 +102,7 @@ module ForwardAnalyser = struct
   end
 
   (** Functor used to build TreeAnalyser modules*)
-  module Make (L : AnalyserLogic) :
+  module Make (L : ForwardAnalyserLogic) :
     S with type annotation = L.annotation and type domain = L.domain = struct
     type annotation = L.annotation
 

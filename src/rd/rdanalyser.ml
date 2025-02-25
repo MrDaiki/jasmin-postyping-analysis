@@ -1,10 +1,10 @@
 open Jasmin
 open Prog
 open Domain
-open Analyser
+open Analyser.ForwardAnalyser
 
 module ReachingDefinitionLogic :
-  AnalyserLogic with type annotation = Domain.t and type domain = Domain.t = struct
+  ForwardAnalyserLogic with type annotation = Domain.t and type domain = Domain.t = struct
   type domain = Domain.t
 
   type annotation = Domain.t
