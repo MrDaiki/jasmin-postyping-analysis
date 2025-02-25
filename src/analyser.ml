@@ -8,21 +8,22 @@ module type AnalyserLogic = sig
 
   type domain
 
+  (** Function that take input and output domain and convert them to annotation type*)
+  val to_annotation : domain -> domain -> annotation
+
+  (** Pretty printing function*)
+  val pp_annot : Format.formatter -> Location.i_loc * annotation -> unit
+
   (** Incusion test 
   Check if an annotation is included in another one. 
 
   args :
-  - prev : previous annotation
-  - state : current annotation 
+  - prev : previous domain
+  - domain : current domain 
   
   returns :
   - bool : true if the fixpoint is reached, false otherwise
   *)
-
-  val to_annotation : domain -> domain -> annotation
-
-  val pp_annot : Format.formatter -> Location.i_loc * annotation -> unit
-
   val included : domain -> domain -> bool
 
   (** 
@@ -86,7 +87,7 @@ module ForwardAnalyser = struct
     type domain
 
     (**
-    Entrypoint for analysis. Each instruction is annotated with the entry annotation. Annotation for the next instruction is then computed
+    Entrypoint for analysis. Using previous domain, the domain for the next instruction is computed. Annotation are then generated using `AnalyserLogic.to_annotation` function
 
     args : 
     - Prog.func (function to analyse)
@@ -107,9 +108,9 @@ module ForwardAnalyser = struct
 
     type domain = L.domain
 
-    let analyse_assign (loc : Location.i_loc) (lv : int glval) tag ty (expr : int gexpr) state =
-        let state = L.assign loc lv tag ty expr state in
-        (Cassgn (lv, tag, ty, expr), state)
+    let analyse_assign (loc : Location.i_loc) (lv : int glval) tag ty (expr : int gexpr) domain =
+        let domain = L.assign loc lv tag ty expr domain in
+        (Cassgn (lv, tag, ty, expr), domain)
 
     let build_for_proxy_variable loc (x : int gvar_i) : var_i =
         Location.mk_loc loc (GV.clone (Location.unloc x))
@@ -125,34 +126,34 @@ module ForwardAnalyser = struct
         let x_ggvar = {gv= x; gs= Slocal} in
         Papp2 (comp_op, Pvar x_ggvar, gend)
 
-    let rec analyse_for (loc : Location.i_loc) variable (range : int grange) body in_state :
+    let rec analyse_for (loc : Location.i_loc) variable (range : int grange) body in_domain :
         (int, annotation, 'asm) ginstr_r * domain =
         let proxy_var = build_for_proxy_variable loc.base_loc variable in
-        let _, state =
+        let _, domain =
             analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
-              (GR.first range) in_state
+              (GR.first range) in_domain
         in
         let condition = build_for_condition_expr proxy_var range in
         let rec loop prev =
-            let state, result = L.assume condition prev in
-            let _, state =
+            let domain, result = L.assume condition prev in
+            let _, domain =
                 analyse_assign loc (Lvar variable) AT_none (Location.unloc variable).v_ty
                   (Pvar {gv= proxy_var; gs= Slocal})
-                  state
+                  domain
             in
-            let body, state = analyse_stmt body state in
-            let _, state =
+            let body, domain = analyse_stmt body domain in
+            let _, domain =
                 analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
                   (build_for_assign_expr proxy_var range)
-                  state
+                  domain
             in
-            if L.included prev state then
+            if L.included prev domain then
               (Cfor (variable, range, body), result)
             else
-              loop (L.merge prev state)
+              loop (L.merge prev domain)
         in
-        let body, state = loop state in
-        (body, L.forget proxy_var state)
+        let body, domain = loop domain in
+        (body, L.forget proxy_var domain)
 
     and analyse_while
         (al : E.align)
@@ -160,39 +161,41 @@ module ForwardAnalyser = struct
         ((a, _) : IInfo.t * 'info)
         (b1 : (int, 'info, 'asm) gstmt)
         (b2 : (int, 'info, 'asm) gstmt)
-        (state : domain) =
+        (domain : domain) =
         let rec loop (prev : domain) =
-            let b1, state_s1 = analyse_stmt b1 prev in
-            let state, result = L.assume cond state_s1 in
-            let b2, state_s2 = analyse_stmt b2 state in
-            if L.included prev state_s2 then
-              (Cwhile (al, b1, cond, (a, L.to_annotation state_s1 result), b2), result)
+            let b1, domain_s1 = analyse_stmt b1 prev in
+            let domain, result = L.assume cond domain_s1 in
+            let b2, domain_s2 = analyse_stmt b2 domain in
+            if L.included prev domain_s2 then
+              (Cwhile (al, b1, cond, (a, L.to_annotation domain_s1 result), b2), result)
             else
-              loop (L.merge state_s2 prev)
+              loop (L.merge domain_s2 prev)
         in
-        let cwhile, result = loop state in
+        let cwhile, result = loop domain in
         (cwhile, result)
 
-    and analyse_instr_r (loc : Location.i_loc) (instr : (int, 'info, 'asm) ginstr_r) (state : domain)
-        : (int, annotation, 'asm) ginstr_r * domain =
+    and analyse_instr_r
+        (loc : Location.i_loc)
+        (instr : (int, 'info, 'asm) ginstr_r)
+        (domain : domain) : (int, annotation, 'asm) ginstr_r * domain =
         match instr with
-        | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr state
+        | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr domain
         | Copn (lvs, tag, sopn, es) ->
-            let annot = L.opn loc lvs tag sopn es state in
+            let annot = L.opn loc lvs tag sopn es domain in
             (Copn (lvs, tag, sopn, es), annot)
         | Ccall (lvs, fn, es) ->
-            let annot = L.funcall loc lvs fn es state in
+            let annot = L.funcall loc lvs fn es domain in
             (Ccall (lvs, fn, es), annot)
         | Csyscall (lvs, sc, es) ->
-            let annot = L.syscall loc lvs sc es state in
+            let annot = L.syscall loc lvs sc es domain in
             (Csyscall (lvs, sc, es), annot)
         | Cif (expr, th, el) ->
-            let annot_th, annot_el = L.assume expr state in
+            let annot_th, annot_el = L.assume expr domain in
             let th, annot_th = analyse_stmt th annot_th in
             let el, annot_el = analyse_stmt el annot_el in
             (Cif (expr, th, el), L.merge annot_th annot_el)
-        | Cfor (var, range, bloc) -> analyse_for loc var range bloc state
-        | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 state
+        | Cfor (var, range, bloc) -> analyse_for loc var range bloc domain
+        | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 domain
 
     and analyse_instr (in_domain : domain) (instr : ('info, 'asm) instr) :
         domain * (annotation, 'asm) instr =
