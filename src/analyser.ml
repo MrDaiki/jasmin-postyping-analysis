@@ -181,19 +181,19 @@ module ForwardAnalyser = struct
         match instr with
         | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr domain
         | Copn (lvs, tag, sopn, es) ->
-            let annot = L.opn loc lvs tag sopn es domain in
-            (Copn (lvs, tag, sopn, es), annot)
+            let domain = L.opn loc lvs tag sopn es domain in
+            (Copn (lvs, tag, sopn, es), domain)
         | Ccall (lvs, fn, es) ->
-            let annot = L.funcall loc lvs fn es domain in
-            (Ccall (lvs, fn, es), annot)
+            let domain = L.funcall loc lvs fn es domain in
+            (Ccall (lvs, fn, es), domain)
         | Csyscall (lvs, sc, es) ->
-            let annot = L.syscall loc lvs sc es domain in
-            (Csyscall (lvs, sc, es), annot)
+            let domain = L.syscall loc lvs sc es domain in
+            (Csyscall (lvs, sc, es), domain)
         | Cif (expr, th, el) ->
-            let annot_th, annot_el = L.assume expr domain in
-            let th, annot_th = analyse_stmt th annot_th in
-            let el, annot_el = analyse_stmt el annot_el in
-            (Cif (expr, th, el), L.merge annot_th annot_el)
+            let domain_th, domain_el = L.assume expr domain in
+            let th, domain_th = analyse_stmt th domain_th in
+            let el, domain_el = analyse_stmt el domain_el in
+            (Cif (expr, th, el), L.merge domain_th domain_el)
         | Cfor (var, range, bloc) -> analyse_for loc var range bloc domain
         | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 domain
 
