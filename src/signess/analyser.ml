@@ -139,7 +139,7 @@ module SignAnalyserLogic : AnalyserLogic with type annotation = SignDomain.t = s
       List.fold_left (fun state (lv, sign) -> SignDomain.reduce lv sign state) state compare_values
 end
 
-module SignAnalyser = TreeAnalyser.Make (SignAnalyserLogic)
+module SignAnalyser = ForwardAnalyser.Make (SignAnalyserLogic)
 
 let sg_prog (_, funcs) =
     List.map (fun f -> SignAnalyser.analyse_function f (SignDomain.empty f)) funcs

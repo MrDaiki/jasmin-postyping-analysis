@@ -3,8 +3,13 @@ open Prog
 open Domain
 open Analyser
 
-module ReachingDefinitionLogic : AnalyserLogic with type annotation = Domain.t = struct
+module ReachingDefinitionLogic :
+  AnalyserLogic with type annotation = Domain.t and type domain = Domain.t = struct
+  type domain = Domain.t
+
   type annotation = Domain.t
+
+  let to_annotation in_domain _ = in_domain
 
   let pp_annot fmt = Domain.pp fmt
 
@@ -25,5 +30,6 @@ module ReachingDefinitionLogic : AnalyserLogic with type annotation = Domain.t =
   let opn loc lvs _ _ _ state = Domain.add (written_lvs lvs) (Instruction loc) state
 end
 
-module ReachingDefinitionAnalyser : TreeAnalyser.S with type annotation = Domain.t =
-  TreeAnalyser.Make (ReachingDefinitionLogic)
+module ReachingDefinitionAnalyser :
+  ForwardAnalyser.S with type annotation = Domain.t and type domain = Domain.t =
+  ForwardAnalyser.Make (ReachingDefinitionLogic)
