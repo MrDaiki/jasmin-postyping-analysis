@@ -2,7 +2,7 @@ open Jasmin
 open Prog
 open Rd.Domain
 open Rd.Srdi
-open Error
+open UvError
 
 type check_mode =
 | Strict

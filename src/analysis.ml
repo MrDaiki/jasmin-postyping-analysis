@@ -32,7 +32,8 @@ let run configuration =
     | InitVar {strict; prog} ->
         let err = Initvars.Check.iv_prog prog strict in
         List.iter
-          (fun (loc, e) -> Format.eprintf "%a: %a@." Location.pp_loc loc Initvars.Error.pp_uderror e)
+          (fun (loc, e) ->
+            Format.eprintf "%a: %a@." Location.pp_loc loc Initvars.UvError.pp_uderror e )
           err
 
 let filepath_arg =
