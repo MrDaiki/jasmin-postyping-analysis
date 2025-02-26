@@ -19,25 +19,28 @@ let is_local (v : int ggvar) =
     | _ -> false
 
 let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data =
-    if Sv.mem (L.unloc var) data.locals then
-      match Mv.find_opt (L.unloc var) domain with
-      | None ->
-          Format.printf "Var %s not found in domain\n" (L.unloc var).v_name ;
-          assert false (*This case is not possible with current version*)
-      | Some iset ->
-      match data.mode with
-      | Strict ->
-          if Srdi.mem Default iset then
-            {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
-          else
-            data
-      | NotStrict ->
-          if Srdi.equal iset (Srdi.singleton Default) then
-            {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
-          else
-            data
-    else
-      data
+    match (L.unloc var).v_ty with
+    | Arr _ -> data
+    | _ ->
+        if Sv.mem (L.unloc var) data.locals then
+          match Mv.find_opt (L.unloc var) domain with
+          | None ->
+              Format.printf "Var %s not found in domain\n" (L.unloc var).v_name ;
+              assert false (*This case is not possible with current version*)
+          | Some iset ->
+          match data.mode with
+          | Strict ->
+              if Srdi.mem Default iset then
+                {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
+              else
+                data
+          | NotStrict ->
+              if Srdi.equal iset (Srdi.singleton Default) then
+                {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
+              else
+                data
+        else
+          data
 
 let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_data =
     match expr with
