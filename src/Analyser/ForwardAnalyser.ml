@@ -216,7 +216,8 @@ module ForwardAnalyser = struct
         ( { f_loc= func.f_loc
           ; f_annot= func.f_annot
           ; f_cc= func.f_cc
-          ; f_info= L.to_annotation in_domain out_domain
+          ; f_info=
+              L.to_annotation out_domain out_domain (* TODO : make a proper fix, this is not good*)
           ; f_name= func.f_name
           ; f_tyin= func.f_tyin
           ; f_args= func.f_args
