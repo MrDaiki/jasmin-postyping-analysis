@@ -134,4 +134,4 @@ let iv_prog ((globs, funcs) : ('info, 'asm) prog) (strict : bool) =
     let data = InitVarVisitor.initial_state in
     let data = {data with mode= strict} in
     let data = InitVarVisitor.visit_prog prog data in
-    List.rev data.errors
+    (prog, List.rev data.errors)

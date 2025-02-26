@@ -3,9 +3,10 @@ open Jasmin
 open Archdef
 
 let parse_prog filepath : ('info, 'asm) Prog.prog =
+    let env = List.fold_left Pretyping.Env.add_from Pretyping.Env.empty !Glob_options.idirs in
     try
       filepath
-      |> Pretyping.tt_file Arch.arch_info Pretyping.Env.empty None None
+      |> Pretyping.tt_file Arch.arch_info env None None
       |> fst |> Pretyping.Env.decls
       |> Compile.preprocess Arch.reg_size Arch.asmOp
     with
@@ -23,14 +24,18 @@ let report_bug_string = "Report bugs to <https://github.com/MrDaiki/jasmin-posty
 
 type ('info, 'asm) init_var_arg =
 { strict: bool
+; pinfo: bool
 ; prog: ('info, 'asm) Prog.prog }
 
 type ('info, 'asm) command_configuration = InitVar of ('info, 'asm) init_var_arg
 
 let run configuration =
     match configuration with
-    | InitVar {strict; prog} ->
-        let err = Initvars.Check.iv_prog prog strict in
+    | InitVar {strict; pinfo; prog} ->
+        let prog, err = Initvars.Check.iv_prog prog strict in
+        if pinfo then
+          Printer.pp_iprog ~debug:false Rd.Rdanalyser.ReachingDefinitionLogic.pp_annot Arch.reg_size
+            Arch.asmOp Format.std_formatter prog ;
         List.iter
           (fun (loc, e) ->
             Format.eprintf "%a: %a@." Location.pp_loc loc Initvars.UvError.pp_uderror e )
@@ -60,9 +65,16 @@ module InitVarCli = struct
       in
       Arg.(value & flag & doc ["strict"])
 
+  let pinfo_term =
+      let doc =
+          Arg.info ~docv:"info"
+            ~doc:"If set, will print annoted program with reaching definition analysis result."
+      in
+      Arg.(value & flag & doc ["info"])
+
   let term run =
-      let combine prog strict = run (InitVar {strict; prog}) in
-      Term.(const combine $ file_term $ strict_term)
+      let combine prog strict pinfo = run (InitVar {strict; pinfo; prog}) in
+      Term.(const combine $ file_term $ strict_term $ pinfo_term)
 
   let cmd run =
       let doc = Cmd.info name ~doc ~man in
