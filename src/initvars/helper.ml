@@ -18,29 +18,37 @@ let is_local (v : int ggvar) =
     | Slocal -> true
     | _ -> false
 
+let _inner_check_iv_error data domain loc var =
+    if Sv.mem var data.locals then
+      match Mv.find_opt var domain with
+      | None ->
+          Format.printf "Var %s not found in domain\n" var.v_name ;
+          assert false (*This case is not possible with current version*)
+      | Some iset ->
+      match data.mode with
+      | Strict ->
+          if Srdi.mem Default iset then
+            {data with errors= (loc, VarNotIntialized var) :: data.errors}
+          else
+            data
+      | NotStrict ->
+          if Srdi.equal iset (Srdi.singleton Default) then
+            {data with errors= (loc, VarNotIntialized var) :: data.errors}
+          else
+            data
+    else
+      data
+
 let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data =
-    match (L.unloc var).v_ty with
-    | Arr _ -> data
-    | _ ->
-        if Sv.mem (L.unloc var) data.locals then
-          match Mv.find_opt (L.unloc var) domain with
-          | None ->
-              Format.printf "Var %s not found in domain\n" (L.unloc var).v_name ;
-              assert false (*This case is not possible with current version*)
-          | Some iset ->
-          match data.mode with
-          | Strict ->
-              if Srdi.mem Default iset then
-                {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
-              else
-                data
-          | NotStrict ->
-              if Srdi.equal iset (Srdi.singleton Default) then
-                {data with errors= (L.loc var, VarNotIntialized (L.unloc var)) :: data.errors}
-              else
-                data
-        else
-          data
+    let loc, var = (L.loc var, L.unloc var) in
+    match var.v_ty with
+    | Arr _ -> (
+        match var.v_kind with
+        | Stack Direct
+         |Reg (_, Direct) ->
+            data
+        | _ -> _inner_check_iv_error data domain loc var )
+    | _ -> _inner_check_iv_error data domain loc var
 
 let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_data =
     match expr with
