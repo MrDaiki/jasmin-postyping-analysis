@@ -93,15 +93,10 @@ let lv_int (lv : int glval) =
 
 let lvs_int lvs = List.filter_map lv_int lvs
 
-module SignAnalyserLogic :
-  ForwardAnalyserLogic with type annotation = SignDomain.t and type domain = SignDomain.t = struct
+module SignAnalyserLogic : ForwardAnalyserLogic with type annotation = SignDomain.t = struct
   type annotation = SignDomain.t
 
-  type domain = SignDomain.t
-
   let pp_annot fmt = SignDomain.pp fmt
-
-  let to_annotation in_domain _ = in_domain
 
   let included prev state = SignDomain.included state prev
 
