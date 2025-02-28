@@ -123,7 +123,7 @@ let iv_prog ((globs, funcs) : ('info, 'asm) prog) (strict : bool) =
     let funcs =
         List.map
           (fun f ->
-            let f, _ =
+            let f =
                 ReachingDefinitionAnalyser.analyse_function f
                   (Rd.Domain.Domain.from_function_start f)
             in
