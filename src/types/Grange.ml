@@ -2,7 +2,7 @@ open Jasmin
 open Prog
 
 (*
-Complementary module for the grange type to help determine 
+Complementary module for the grange type to help determine :
 - first and last value of a range
 - increment and comparison operator for a range
 *)

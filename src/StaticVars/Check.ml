@@ -1,9 +1,9 @@
 open Jasmin
 open Prog
 open Syscall_t
-open Visitor.Programvisitor
+open Visitor.ProgramVisitor
 open Resolution
-open Error
+open StaticVarsError
 
 let name_of_syscall sc =
     match sc with
@@ -17,8 +17,6 @@ let build_visitor (prog : ('info, 'asm) prog) =
       type data = resolution * int gvar_i list
 
       type annotation = unit
-
-      let initial_state : data = (Dynamic, [])
 
       let visit_funcall
           (loc : L.i_loc)
@@ -164,6 +162,8 @@ let build_visitor (prog : ('info, 'asm) prog) =
     let module V = Visitor.Make (StaticVarsPartialVisitor) in
     (module V : Visitor.S with type data = resolution * int gvar_i list and type annotation = unit)
 
+let initial_state = (Dynamic, [])
+
 let iv_prog prog =
     let (module V) = build_visitor prog in
-    V.visit_prog prog V.initial_state
+    V.visit_prog prog initial_state

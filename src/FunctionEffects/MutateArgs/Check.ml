@@ -1,8 +1,8 @@
 open Jasmin
 open Prog
 open Utils
-open Mutparameffect
-open MutableArgsVisitor
+open MutParamEffect
+open MutParamVisitor
 
 let is_reduced (varmap : mut_param_effect Mv.t) : bool =
     Mv.for_all
@@ -39,11 +39,12 @@ let rec reduce (varmap : mut_param_effect Mv.t) : mut_param_effect Mv.t =
     else
       reduce new_map
 
+let initial_state =
+    {mutable_params_set= Sv.empty; function_params_map= Mf.empty; mutable_params_effect= Mv.empty}
+
 let mp_prog (prog : ('info, 'asm) prog) =
     let _, funcs = prog in
-    let varmap =
-        (MutableArgsVisitor.visit_prog prog MutableArgsVisitor.initial_state).mutable_params_effect
-    in
+    let varmap = (MutParamVisitor.visit_prog prog initial_state).mutable_params_effect in
     let varmap = reduce varmap in
     List.fold
       (fun acc func ->

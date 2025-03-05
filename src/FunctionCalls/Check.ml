@@ -3,15 +3,13 @@ open Prog
 open Warning
 open FInfo
 open Visitor
-open Programvisitor
+open ProgramVisitor
 
 module FunctionCallPartialVisitor :
   PartialVisitor with type data = Sf.t and type annotation = unit = struct
   type data = Sf.t
 
   type annotation = unit
-
-  let initial_state : data = Sf.empty
 
   let visit_funcall (_ : L.i_loc) (_ : annotation) _ funname _ data : data = Sf.add funname data
 
@@ -54,9 +52,11 @@ let non_export_functions (funcs : ('len, 'info, 'asm) gfunc list) =
           acc )
       Sf.empty funcs
 
+let initial_state = Sf.empty
+
 let fc_prog (prog : ('info, 'asm) prog) : unit =
     let _, funcs = prog in
-    let data = FunctionCallVisitor.initial_state in
+    let data = initial_state in
     let funcs_calls = FunctionCallVisitor.visit_prog prog data in
     let non_exported = non_export_functions funcs in
     let diff = Sf.diff non_exported funcs_calls in

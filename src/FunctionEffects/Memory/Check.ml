@@ -1,6 +1,6 @@
 open Jasmin
 open Prog
-open Memoryeffect
+open MemoryEffect
 open MemoryEffectVisitor
 
 let is_reduced map =

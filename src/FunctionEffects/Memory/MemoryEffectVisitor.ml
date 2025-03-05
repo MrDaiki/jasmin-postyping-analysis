@@ -1,8 +1,8 @@
 open Jasmin
-open Memoryeffect
+open MemoryEffect
 open Utils
 open Prog
-open Visitor.Programvisitor
+open Visitor.ProgramVisitor
 
 let memory_effect_lv (lv : int glval) : memory_effect =
     match lv with
@@ -21,8 +21,6 @@ module MemoryEffectPartialVisitor :
   type data = memory_effect_visitor_data
 
   type annotation = unit
-
-  let initial_state : data = {memory_effect= Mf.empty; local_effect= None}
 
   let visit_funcall
       (_ : L.i_loc)
@@ -120,5 +118,7 @@ module MemoryEffectVisitor :
   Visitor.S with type data = memory_effect_visitor_data and type annotation = unit =
   Visitor.Make (MemoryEffectPartialVisitor)
 
+let initial_state = {memory_effect= Mf.empty; local_effect= None}
+
 let memory_effects (prog : ('info, 'asm) prog) : memory_effect Mf.t =
-    (MemoryEffectVisitor.visit_prog prog MemoryEffectVisitor.initial_state).memory_effect
+    (MemoryEffectVisitor.visit_prog prog initial_state).memory_effect

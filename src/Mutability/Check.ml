@@ -1,7 +1,7 @@
 open Jasmin
 open Prog
 open Utils
-open Visitor.Programvisitor
+open Visitor.ProgramVisitor
 open Mutable
 open Error
 
@@ -61,8 +61,6 @@ let build_visitor ((_, funcs) : ('info, 'asm) prog) :
       type data = unit
 
       type annotation = unit
-
-      let initial_state = ()
 
       let visit_funcall
           (_ : L.i_loc)
@@ -159,4 +157,4 @@ let md_prog prog =
     let (module V : Visitor.S with type data = unit and type annotation = unit) =
         build_visitor prog
     in
-    V.visit_prog prog V.initial_state
+    V.visit_prog prog ()

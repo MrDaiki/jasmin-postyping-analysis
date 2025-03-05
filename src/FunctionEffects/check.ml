@@ -1,8 +1,8 @@
 open Jasmin.Prog
-open Memory.Memoryeffect
+open Memory.MemoryEffect
 open Memory.Check
-open Mutate_args.Check
-open Mutate_args.Mutparameffect
+open MutateArgs.Check
+open MutateArgs.MutParamEffect
 open Return_values.Check
 open Return_values.Return_effect
 

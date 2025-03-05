@@ -1,7 +1,7 @@
 open Jasmin
 open Prog
 open Utils
-open Error
+open StaticVarsError
 open Types.Sgv
 
 type resolution =

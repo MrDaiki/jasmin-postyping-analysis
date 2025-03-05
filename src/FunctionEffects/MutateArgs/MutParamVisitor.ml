@@ -1,8 +1,8 @@
 open Jasmin
 open Prog
 open Utils
-open Mutparameffect
-open Visitor.Programvisitor
+open MutParamEffect
+open Visitor.ProgramVisitor
 
 type visitor_data =
 { mutable_params_set: Sv.t
@@ -85,14 +85,11 @@ let build_mutable_params_set funcs =
 let function_params_map funcs =
     List.fold (fun acc func -> Mf.add func.f_name func.f_args acc) Mf.empty funcs
 
-module MutateArgsPartialVisitor :
+module MutParamPartialVisitor :
   PartialVisitor with type data = visitor_data and type annotation = unit = struct
   type data = visitor_data
 
   type annotation = unit
-
-  let initial_state : data =
-      {mutable_params_set= Sv.empty; function_params_map= Mf.empty; mutable_params_effect= Mv.empty}
 
   let visit_funcall
       (_ : L.i_loc)
@@ -215,8 +212,8 @@ module MutateArgsPartialVisitor :
         data funcs
 end
 
-module MutableArgsVisitor :
+module MutParamVisitor :
   Visitor.S
-    with type data = MutateArgsPartialVisitor.data
-     and type annotation = MutateArgsPartialVisitor.annotation =
-  Visitor.Make (MutateArgsPartialVisitor)
+    with type data = MutParamPartialVisitor.data
+     and type annotation = MutParamPartialVisitor.annotation =
+  Visitor.Make (MutParamPartialVisitor)
