@@ -34,8 +34,8 @@ let run configuration =
           Printer.pp_iprog ~debug:false Rd.RdAnalyser.ReachingDefinitionLogic.pp_annot Arch.reg_size
             Arch.asmOp Format.std_formatter prog ;
         List.iter
-          (fun (loc, e) ->
-            Format.eprintf "%a: %a@." Location.pp_loc loc InitVars.UvError.pp_uderror e )
+          (fun (module Err : Error.CompileError.CompileError) ->
+            Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
           err
 
 let filepath_arg =

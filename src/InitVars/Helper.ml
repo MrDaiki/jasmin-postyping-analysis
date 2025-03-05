@@ -2,7 +2,8 @@ open Jasmin
 open Prog
 open Rd
 open Types
-open UvError
+open InitVarError
+open Error.CompileError
 
 type check_mode =
 | Strict
@@ -11,7 +12,7 @@ type check_mode =
 type iv_data =
 { locals: Sv.t
 ; mode: check_mode
-; errors: (Location.t * uv_error) list }
+; errors: compile_error list }
 
 let is_local (v : int ggvar) =
     match v.gs with
@@ -21,19 +22,17 @@ let is_local (v : int ggvar) =
 let _inner_check_iv_error data domain loc var =
     if Sv.mem var data.locals then
       match Mv.find_opt var domain with
-      | None ->
-          Format.printf "Var %s not found in domain\n" var.v_name ;
-          assert false (*This case is not possible with current version*)
+      | None -> assert false (*This case is not possible with current version*)
       | Some iset ->
       match data.mode with
       | Strict ->
           if SIloc.mem Default iset then
-            {data with errors= (loc, VarNotIntialized var) :: data.errors}
+            {data with errors= create_init_var_error var loc :: data.errors}
           else
             data
       | NotStrict ->
           if SIloc.equal iset (SIloc.singleton Default) then
-            {data with errors= (loc, VarNotIntialized var) :: data.errors}
+            {data with errors= create_init_var_error var loc :: data.errors}
           else
             data
     else
