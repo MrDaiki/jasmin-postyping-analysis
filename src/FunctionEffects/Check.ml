@@ -3,8 +3,8 @@ open Memory.MemoryEffect
 open Memory.Check
 open MutateArgs.Check
 open MutateArgs.MutParamEffect
-open Return_values.Check
-open Return_values.Return_effect
+open ReturnValues.Check
+open ReturnValues.ReturnEffect
 
 let check_effects
     (rt_effect : return_effect)

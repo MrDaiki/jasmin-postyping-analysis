@@ -1,6 +1,6 @@
 open Cmdliner
 open Jasmin
-open Archdef
+open ArchDef
 
 let parse_prog filepath : ('info, 'asm) Prog.prog =
     try
@@ -29,13 +29,13 @@ type ('info, 'asm) command_configuration = InitVar of ('info, 'asm) init_var_arg
 let run configuration =
     match configuration with
     | InitVar {strict; pinfo; prog} ->
-        let prog, err = Initvars.Check.iv_prog prog strict in
+        let prog, err = InitVars.Check.iv_prog prog strict in
         if pinfo then
           Printer.pp_iprog ~debug:false Rd.RdAnalyser.ReachingDefinitionLogic.pp_annot Arch.reg_size
             Arch.asmOp Format.std_formatter prog ;
         List.iter
           (fun (loc, e) ->
-            Format.eprintf "%a: %a@." Location.pp_loc loc Initvars.UvError.pp_uderror e )
+            Format.eprintf "%a: %a@." Location.pp_loc loc InitVars.UvError.pp_uderror e )
           err
 
 let filepath_arg =
