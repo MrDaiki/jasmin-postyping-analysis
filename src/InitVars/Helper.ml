@@ -76,3 +76,17 @@ let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_da
         let data = check_iv_expr data domain e1 in
         let data = check_iv_expr data domain e2 in
         check_iv_expr data domain e3
+
+let check_iv_lv (data : iv_data) (domain : Domain.t) (lv : lval) : iv_data =
+    match lv with
+    | Lnone _
+     |Lvar _ ->
+        data
+    | Lmem (_, _, gv, expr)
+     |Laset (_, _, _, gv, expr)
+     |Lasub (_, _, _, gv, expr) ->
+        let data = check_iv_expr data domain expr in
+        check_iv_error data domain gv
+
+let check_iv_lvs (data : iv_data) (domain : Domain.t) (lvs : lval list) : iv_data =
+    List.fold_left (fun d lv -> check_iv_lv d domain lv) data lvs

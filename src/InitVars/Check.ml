@@ -13,39 +13,43 @@ module InitVarPartialVisitor :
   let visit_funcall
       (_ : L.i_loc)
       (domain : annotation)
-      (_ : int glvals)
+      (lvs : int glvals)
       (_ : funname)
       (params : int gexprs)
       (data : data) : data =
+      let data = check_iv_lvs data domain lvs in
       List.fold_left (fun d e -> check_iv_expr d domain e) data params
 
   let visit_syscall
       (_ : L.i_loc)
       (domain : annotation)
-      (_ : int glvals)
+      (lvs : int glvals)
       (_ : 'asm Syscall_t.syscall_t)
       (params : int gexprs)
       (data : data) : data =
+      let data = check_iv_lvs data domain lvs in
       List.fold_left (fun d e -> check_iv_expr d domain e) data params
 
   let visit_assign
       (_ : L.i_loc)
       (domain : annotation)
-      (_ : int glval)
+      (lv : int glval)
       (_ : E.assgn_tag)
       (_ : int gty)
       (expr : int gexpr)
       (data : data) : data =
+      let data = check_iv_lv data domain lv in
       check_iv_expr data domain expr
 
   let visit_copn
       (_ : L.i_loc)
       (domain : annotation)
-      (_ : int glvals)
+      (lvs : int glvals)
       (_ : E.assgn_tag)
       (_ : 'asm Sopn.sopn)
       (exprs : int gexprs)
       (data : data) : data =
+      let data = check_iv_lvs data domain lvs in
       List.fold_left (fun d e -> check_iv_expr d domain e) data exprs
 
   let rec visit_for
