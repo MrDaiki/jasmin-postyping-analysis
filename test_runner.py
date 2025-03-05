@@ -18,6 +18,7 @@ INITVARS_VALID_FLAGS = ["strict"]
 @serde
 class TestScenario :
     name : str
+    test_dir : str
     classname : TestClass
     flags : Optional[list[str]]
 
@@ -25,7 +26,6 @@ class TestScenario :
 @serde
 class TestConfig: 
     executable_path : str  
-    test_dir : str
     out_dir : str
     scenarios : list[TestScenario]
 
@@ -108,8 +108,9 @@ def find_all_testable_files(test_dir : str) -> list[str] :
 def make_tests(config : TestConfig):
     scenarios = {}
     builder = CommandBuilder()
-    testable_files = find_all_testable_files(config.test_dir)
     for scenario in config.scenarios:
+
+        testable_files = find_all_testable_files(scenario.test_dir)
         tests = []
         for file in testable_files:
             test = builder.create().with_scenario(scenario,file).build()

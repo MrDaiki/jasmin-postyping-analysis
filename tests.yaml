@@ -1,9 +1,10 @@
 executable_path : "./_build/default/src/analysis.exe"
-test_dir : "../libjade/oldsrc-should-delete"
+# test_dir : "../libjade/oldsrc-should-delete"
 out_dir : "./tests_outputs"
 scenarios : 
   - name : "initvar-not-strict"
     classname : "initvars"
+    test_dir : "./tests/initvars/nonstrict/fail"
   # - name : "initvar-strict"
   #   classname : "initvars"
   #   flags:
