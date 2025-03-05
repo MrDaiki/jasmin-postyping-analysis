@@ -3,12 +3,9 @@ open Jasmin
 open Archdef
 
 let parse_prog filepath : ('info, 'asm) Prog.prog =
-    let env = List.fold_left Pretyping.Env.add_from Pretyping.Env.empty !Glob_options.idirs in
     try
-      filepath
-      |> Pretyping.tt_file Arch.arch_info env None None
-      |> fst |> Pretyping.Env.decls
-      |> Compile.preprocess Arch.reg_size Arch.asmOp
+      let env, _, _ = Compile.parse_file Arch.arch_info filepath in
+      env |> Pretyping.Env.decls |> Compile.preprocess Arch.reg_size Arch.asmOp
     with
     | Pretyping.TyError (loc, e) ->
         Format.eprintf "%a: %a@." Location.pp_loc loc Pretyping.pp_tyerror e ;
@@ -34,7 +31,7 @@ let run configuration =
     | InitVar {strict; pinfo; prog} ->
         let prog, err = Initvars.Check.iv_prog prog strict in
         if pinfo then
-          Printer.pp_iprog ~debug:false Rd.Rdanalyser.ReachingDefinitionLogic.pp_annot Arch.reg_size
+          Printer.pp_iprog ~debug:false Rd.RdAnalyser.ReachingDefinitionLogic.pp_annot Arch.reg_size
             Arch.asmOp Format.std_formatter prog ;
         List.iter
           (fun (loc, e) ->

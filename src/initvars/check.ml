@@ -1,17 +1,14 @@
 open Jasmin
 open Prog
 open Visitor
-open Programvisitor
+open ProgramVisitor
 open Helper
-open Rd.Rdanalyser
 
 module InitVarPartialVisitor :
-  PartialVisitor with type data = iv_data and type annotation = Rd.Domain.Domain.t = struct
+  PartialVisitor with type data = iv_data and type annotation = Rd.Domain.t = struct
   type data = iv_data
 
-  type annotation = Rd.Domain.Domain.t
-
-  let initial_state : data = {locals= Sv.empty; mode= Strict; errors= []}
+  type annotation = Rd.Domain.t
 
   let visit_funcall
       (_ : L.i_loc)
@@ -113,6 +110,8 @@ module InitVarVisitor :
      and type data = InitVarPartialVisitor.data =
   Visitor.Make (InitVarPartialVisitor)
 
+let initial_state : iv_data = {locals= Sv.empty; mode= NotStrict; errors= []}
+
 let iv_prog ((globs, funcs) : ('info, 'asm) prog) (strict : bool) =
     let strict =
         if strict then
@@ -124,14 +123,13 @@ let iv_prog ((globs, funcs) : ('info, 'asm) prog) (strict : bool) =
         List.map
           (fun f ->
             let f =
-                ReachingDefinitionAnalyser.analyse_function f
-                  (Rd.Domain.Domain.from_function_start f)
+                Rd.RdAnalyser.ReachingDefinitionAnalyser.analyse_function f
+                  (Rd.Domain.from_function_start f)
             in
             f )
           funcs
     in
     let prog = (globs, funcs) in
-    let data = InitVarVisitor.initial_state in
-    let data = {data with mode= strict} in
+    let data = {initial_state with mode= strict} in
     let data = InitVarVisitor.visit_prog prog data in
     (prog, List.rev data.errors)

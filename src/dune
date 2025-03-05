@@ -1,6 +1,5 @@
 (executable
  (name analysis)
- (libraries jasmin.jasmin cmdliner)
- (flags :standard -rectypes))
+ (libraries jasmin.jasmin cmdliner))
 
 (include_subdirs qualified)

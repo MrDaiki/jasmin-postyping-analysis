@@ -1,7 +1,7 @@
 open Jasmin
 open Prog
-open Rd.Domain
-open Rd.Srdi
+open Rd
+open Types
 open UvError
 
 type check_mode =
@@ -27,12 +27,12 @@ let _inner_check_iv_error data domain loc var =
       | Some iset ->
       match data.mode with
       | Strict ->
-          if Srdi.mem Default iset then
+          if SIloc.mem Default iset then
             {data with errors= (loc, VarNotIntialized var) :: data.errors}
           else
             data
       | NotStrict ->
-          if Srdi.equal iset (Srdi.singleton Default) then
+          if SIloc.equal iset (SIloc.singleton Default) then
             {data with errors= (loc, VarNotIntialized var) :: data.errors}
           else
             data

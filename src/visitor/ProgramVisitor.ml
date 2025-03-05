@@ -6,8 +6,6 @@ module type PartialVisitor = sig
 
   type annotation
 
-  val initial_state : data
-
   val visit_prog :
     ((annotation, 'asm) Prog.instr -> data -> data) -> (annotation, 'asm) Prog.prog -> data -> data
 
@@ -17,35 +15,27 @@ module type PartialVisitor = sig
   val visit_stmt :
     ((annotation, 'asm) Prog.instr -> data -> data) -> (annotation, 'asm) Prog.stmt -> data -> data
 
-  val visit_funcall : L.i_loc -> annotation -> int glvals -> funname -> int gexprs -> data -> data
+  val visit_funcall : Location.i_loc -> annotation -> lvals -> funname -> exprs -> data -> data
 
   val visit_syscall :
-       L.i_loc
+       Location.i_loc
     -> annotation
-    -> int glvals
+    -> lvals
     -> BinNums.positive Syscall_t.syscall_t
-    -> int gexprs
+    -> exprs
     -> data
     -> data
 
-  val visit_assign :
-    L.i_loc -> annotation -> int glval -> E.assgn_tag -> int gty -> int gexpr -> data -> data
+  val visit_assign : L.i_loc -> annotation -> lval -> E.assgn_tag -> ty -> expr -> data -> data
 
   val visit_copn :
-       L.i_loc
-    -> annotation
-    -> int glval list
-    -> E.assgn_tag
-    -> 'asm Sopn.sopn
-    -> int gexprs
-    -> data
-    -> data
+    L.i_loc -> annotation -> lvals -> E.assgn_tag -> 'asm Sopn.sopn -> exprs -> data -> data
 
   val visit_for :
        ((annotation, 'asm) Prog.instr -> data -> data)
     -> L.i_loc
     -> annotation
-    -> int gvar_i
+    -> var_i
     -> int grange
     -> (annotation, 'asm) Prog.stmt
     -> data
@@ -58,7 +48,7 @@ module type PartialVisitor = sig
     -> IInfo.t * annotation
     -> E.align
     -> (annotation, 'asm) Prog.stmt
-    -> int gexpr
+    -> expr
     -> (annotation, 'asm) Prog.stmt
     -> data
     -> data
@@ -67,7 +57,7 @@ module type PartialVisitor = sig
        ((annotation, 'asm) Prog.instr -> data -> data)
     -> L.i_loc
     -> annotation
-    -> int gexpr
+    -> expr
     -> (annotation, 'asm) Prog.stmt
     -> (annotation, 'asm) Prog.stmt
     -> data
@@ -80,8 +70,6 @@ module Visitor = struct
 
     type annotation
 
-    val initial_state : data
-
     val visit_prog : (annotation, 'asm) Prog.prog -> data -> data
   end
 
@@ -90,8 +78,6 @@ module Visitor = struct
     type data = V.data
 
     type annotation = V.annotation
-
-    let initial_state = V.initial_state
 
     let rec _visit_instr (instr : (int, V.annotation, 'asm) ginstr) (data : V.data) : V.data =
         match instr.i_desc with
@@ -119,38 +105,38 @@ end
      let visit_funcall
          (loc : L.i_loc)
          (annot : annotation)
-         (lvs : int glvals)
+         (lvs : lvals)
          (funname : funname)
-         (params : int gexprs)
+         (params : exprs)
          (data : data) : data =
          data
 
      let visit_syscall
          (loc : L.i_loc)
          (annot : annotation)
-         (lvs : int glvals)
+         (lvs : lvals)
          (syscall : 'asm Syscall_t.syscall_t)
-         (params : int gexprs)
+         (params : exprs)
          (data : data) : data =
          data
 
      let visit_assign
          (loc : L.i_loc)
          (annot : annotation)
-         (lv : int glval)
+         (lv : lval)
          (tag : E.assgn_tag)
-         (gty : int gty)
-         (expr : int gexpr)
+         (gty : ty)
+         (expr : expr)
          (data : data) : data =
          data
 
      let visit_copn
          (loc : L.i_loc)
          (annot : annotation)
-         (lvs : int glvals)
+         (lvs : lvals)
          (tag : E.assgn_tag)
          (opn : 'asm Sopn.sopn)
-         (exprs : int gexprs)
+         (exprs : exprs)
          (data : data) : data =
          data
 
@@ -158,8 +144,8 @@ end
          (visit_instr : (annotation, 'asm) instr -> data -> data)
          (loc : L.i_loc)
          (annot : annotation)
-         (var : int gvar_i)
-         (range : int grange)
+         (var : var_i)
+         (range : range)
          (stmt : (annotation, 'asm) stmt)
          (data : data) : data =
          data
@@ -171,7 +157,7 @@ end
          (info : IInfo.t * annotation)
          (align : E.align)
          (b1 : (annotation, 'asm) stmt)
-         (cond : int gexpr)
+         (cond : expr)
          (b2 : (annotation, 'asm) stmt)
          (data : data) : data =
          data
@@ -180,7 +166,7 @@ end
          (visit_instr : (annotation, 'asm) instr -> data -> data)
          (loc : L.i_loc)
          (annot : annotation)
-         (cond : int gexpr)
+         (cond : expr)
          (th : (annotation, 'asm) stmt)
          (el : (annotation, 'asm) stmt)
          (data : data) : data =
