@@ -16,7 +16,7 @@ type check_mode =
 
 (**
 Visitor inner state. 
-locals : Sv.t local variables of the analysed function
+locals : Sv.t local variables of the analysed program
 mode : check_mode mode of the analysis
 errors : list of error found during analysis
 *)
@@ -83,58 +83,63 @@ let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data 
         | _ -> _inner_check_iv_error data domain loc var )
     | _ -> _inner_check_iv_error data domain loc var
 
-(**
-Check variable initialisation for expressions in the program
-args : 
-- data : (iv_data) state of the visitor 
-- domain : (Domain.t) In domain of the reaching definition analysis for current instruction
-- expr : (expr) checked expression
-*)
-let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_data =
-    match expr with
-    | Pconst _ -> data
-    | Pbool _ -> data
-    | Parr_init _ -> data
-    | Pvar var ->
-        if Sv.mem (L.unloc var.gv) data.locals then
-          check_iv_error data domain var.gv
-        else
-          data
-    | Pget (_, _, _, var, expr) ->
-        let data = check_iv_expr data domain expr in
-        check_iv_error data domain var.gv
-    | Psub (_, _, _, var, expr) ->
-        let data = check_iv_expr data domain expr in
-        check_iv_error data domain var.gv
-    | Pload (_, _, var, expr) ->
-        let data = check_iv_expr data domain expr in
-        check_iv_error data domain var
-    | Papp1 (_, expr) -> check_iv_expr data domain expr
-    | Papp2 (_, l, r) -> check_iv_expr (check_iv_expr data domain l) domain r
-    | PappN (_, exprs) -> List.fold_left (fun d e -> check_iv_expr d domain e) data exprs
-    | Pif (_, e1, e2, e3) ->
-        let data = check_iv_expr data domain e1 in
-        let data = check_iv_expr data domain e2 in
-        check_iv_expr data domain e3
+module InitVarCheckerLogic :
+  Visitor.ExpressionChecker.ExpressionCheckerLogic
+    with type domain = Domain.t
+     and type self = iv_data = struct
+  type domain = Domain.t
 
-(** 
-Check for variable initialisation in left values. It apply initialisation check for expressions in left values (array access, slice, memory access).
-args :
-- data : iv_data state of the visitor
-- domain : Domain.t In domain of the reaching definition analysis for current instruction
-- lv : lval left value to check
-return : iv_data (updated state)
-*)
-let check_iv_lv (data : iv_data) (domain : Domain.t) (lv : lval) : iv_data =
-    match lv with
-    | Lnone _
-     |Lvar _ ->
-        data
-    | Lmem (_, _, gv, expr)
-     |Laset (_, _, _, gv, expr)
-     |Lasub (_, _, _, gv, expr) ->
-        let data = check_iv_expr data domain expr in
-        check_iv_error data domain gv
+  type self = iv_data
 
-let check_iv_lvs (data : iv_data) (domain : Domain.t) (lvs : lval list) : iv_data =
-    List.fold_left (fun d lv -> check_iv_lv d domain lv) data lvs
+  (**
+  Check variable initialisation for expressions in the program
+  args : 
+  - self : (iv_data) state of the visitor 
+  - domain : (Domain.t) In domain of the reaching definition analysis for current instruction
+  - expr : (expr) checked expression
+  *)
+  let rec check_expr
+      (self : self)
+      (domain : domain)
+      (loc : Jasmin.Location.i_loc)
+      (expr : Jasmin.Prog.expr) : self =
+      match expr with
+      | Pconst _ -> self
+      | Pbool _ -> self
+      | Parr_init _ -> self
+      | Pvar var ->
+          if Sv.mem (L.unloc var.gv) self.locals then
+            check_iv_error self domain var.gv
+          else
+            self
+      | Pget (_, _, _, var, expr) ->
+          let self = check_expr self domain loc expr in
+          check_iv_error self domain var.gv
+      | Psub (_, _, _, var, expr) ->
+          let self = check_expr self domain loc expr in
+          check_iv_error self domain var.gv
+      | Pload (_, _, var, expr) ->
+          let self = check_expr self domain loc expr in
+          check_iv_error self domain var
+      | Papp1 (_, expr) -> check_expr self domain loc expr
+      | Papp2 (_, l, r) -> check_expr (check_expr self domain loc l) domain loc r
+      | PappN (_, exprs) -> List.fold_left (fun d e -> check_expr d domain loc e) self exprs
+      | Pif (_, e1, e2, e3) ->
+          let self = check_expr self domain loc e1 in
+          let self = check_expr self domain loc e2 in
+          check_expr self domain loc e3
+
+  let check_return_variable (self : self) (domain : domain) (var : Jasmin.Prog.var_i) : self =
+      check_iv_error self domain var
+
+  (** 
+  Check for variable initialisation in left values. It apply initialisation check for expressions in left values (array access, slice, memory access).
+    args :
+    - self : iv_data state of the visitor
+    - domain : Domain.t In domain of the reaching definition analysis for current instruction
+    - lv : lval left value to check
+    return : iv_data (updated state)
+  *)
+  let check_lv_variable (self : self) (domain : domain) (var : Jasmin.Prog.var_i) : self =
+      check_iv_error self domain var
+end

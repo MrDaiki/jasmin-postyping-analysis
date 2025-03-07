@@ -20,7 +20,7 @@ let parse_prog filepath : ('info, 'asm) Prog.prog =
 let report_bug_string = "Report bugs to <https://github.com/MrDaiki/jasmin-postyping-analysis>"
 
 type ('info, 'asm) init_var_arg =
-{ strict: bool
+{ strict: InitVars.Checker.check_mode
 ; pinfo: bool
 ; prog: ('info, 'asm) Prog.prog }
 
@@ -60,7 +60,11 @@ module InitVarCli = struct
                where variable may not be initialised. If not set, error will be raised only if \
                there is no path where variable is initialised."
       in
-      Arg.(value & flag & doc ["strict"])
+      let flag_to_mode = function
+          | true -> InitVars.Checker.Strict
+          | false -> InitVars.Checker.NotStrict
+      in
+      Term.(const flag_to_mode $ Arg.(value & flag & doc ["strict"]))
 
   let pinfo_term =
       let doc =
