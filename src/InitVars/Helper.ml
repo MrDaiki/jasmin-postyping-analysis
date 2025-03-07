@@ -5,21 +5,47 @@ open Types
 open InitVarError
 open Error.CompileError
 
+(**
+Check mode for initialised variable analysis 
+- Strict : Check if a path exists where variable may not be initialised (can trigger false positive)
+- NotStrict : Check if there is no path in the program where variable is initialised (less restrictive but let some error pass)
+*)
 type check_mode =
 | Strict
 | NotStrict
 
+(**
+Visitor inner state. 
+locals : Sv.t local variables of the analysed function
+mode : check_mode mode of the analysis
+errors : list of error found during analysis
+*)
 type iv_data =
 { locals: Sv.t
 ; mode: check_mode
 ; errors: compile_error list }
 
+(*
+Check if a variable is local
+args : int ggvar 
+return : bool (true if variable is local, false otherwise)
+*)
 let is_local (v : int ggvar) =
     match v.gs with
     | Slocal -> true
     | _ -> false
 
-let _inner_check_iv_error data domain loc var =
+(*
+Error checking function of the analysis. Check if variable `var` passed as argument is initialised in the current domain. It also check if the variable is local (because initialisation problem only make sense for local variables).
+args :
+- data : iv_data state of the visitor
+- domain : Domain.t In domain of the reaching definition analysis for current instruction
+- loc : Jasmin.Location.t location of the variable
+- var : var variable to check
+return : iv_data (updated the list of error if `var` is not initialised)
+*)
+let _inner_check_iv_error (data : iv_data) (domain : Domain.t) (loc : Jasmin.Location.t) (var : var)
+    =
     if Sv.mem var data.locals then
       match Mv.find_opt var domain with
       | None -> assert false (*This case is not possible with current version*)
@@ -38,6 +64,14 @@ let _inner_check_iv_error data domain loc var =
     else
       data
 
+(**
+Pre error checking function. It is used to check if variable `var` is an non ptr array (because non ptr array are by default initialised in Jasmin specification).
+args : 
+- data : iv_data state of the visitor
+- domain : Domain.t In domain of the reaching definition analysis for current instruction
+- var : var_i variable to check
+return : iv_data (updated state)
+*)
 let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data =
     let loc, var = (L.loc var, L.unloc var) in
     match var.v_ty with
@@ -49,6 +83,13 @@ let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data 
         | _ -> _inner_check_iv_error data domain loc var )
     | _ -> _inner_check_iv_error data domain loc var
 
+(**
+Check variable initialisation for expressions in the program
+args : 
+- data : (iv_data) state of the visitor 
+- domain : (Domain.t) In domain of the reaching definition analysis for current instruction
+- expr : (expr) checked expression
+*)
 let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_data =
     match expr with
     | Pconst _ -> data
@@ -76,6 +117,14 @@ let rec check_iv_expr (data : iv_data) (domain : Domain.t) (expr : expr) : iv_da
         let data = check_iv_expr data domain e2 in
         check_iv_expr data domain e3
 
+(** 
+Check for variable initialisation in left values. It apply initialisation check for expressions in left values (array access, slice, memory access).
+args :
+- data : iv_data state of the visitor
+- domain : Domain.t In domain of the reaching definition analysis for current instruction
+- lv : lval left value to check
+return : iv_data (updated state)
+*)
 let check_iv_lv (data : iv_data) (domain : Domain.t) (lv : lval) : iv_data =
     match lv with
     | Lnone _
