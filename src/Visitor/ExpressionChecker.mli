@@ -1,3 +1,10 @@
+(**
+    module derived from `Visitor`. It apply given functions to all expressions and variables of the program. 
+    For the sake of modularity, we defines three functions to check expressions and variables: 
+    - `check_expr` : check an expression (right expression)
+    - `check_return_variable` : check a variable that is used as a return value
+    - `check_lv_variable` : check lvalues
+*)
 module type ExpressionCheckerLogic = sig
   type domain
 
