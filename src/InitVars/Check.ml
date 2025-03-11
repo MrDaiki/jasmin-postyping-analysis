@@ -5,7 +5,7 @@ open ExpressionChecker
 open Checker
 
 module InitVarVisitor :
-  ExpressionChecker.S with type self = iv_data and type annotation = Rd.Domain.t =
+  ProgramVisitor.Visitor.S with type data = iv_data and type annotation = Rd.Domain.t =
   ExpressionChecker.Make (InitVarCheckerLogic)
 
 let initial_state : iv_data = {mode= NotStrict; errors= []}
