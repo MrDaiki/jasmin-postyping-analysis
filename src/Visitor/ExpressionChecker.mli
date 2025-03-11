@@ -11,11 +11,6 @@ module type ExpressionCheckerLogic = sig
 end
 
 module ExpressionChecker : sig
-  module Make : functor (Logic : ExpressionCheckerLogic) -> sig
-    type annotation = Logic.domain
-
-    type data = Logic.self
-
-    val visit_prog : (annotation, 'asm) Jasmin.Prog.prog -> data -> data
-  end
+  module Make : functor (Logic : ExpressionCheckerLogic) ->
+    ProgramVisitor.Visitor.S with type data = Logic.self and type annotation = Logic.domain
 end
