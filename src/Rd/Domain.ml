@@ -8,9 +8,15 @@ type t = SIloc.t Mv.t
 
 let empty : t = Mv.empty
 
+(* TODO : remove when integrated in Prog.mli*)
+let params fc = List.fold_left (fun s v -> Sv.add v s) Sv.empty fc.f_args
+
 let from_function_start (f : ('info, 'asm) func) : t =
     let locvars = Prog.locals f in
-    Sv.fold (fun x acc -> Mv.add x (SIloc.singleton Default) acc) locvars Mv.empty
+    let s = Sv.fold (fun x acc -> Mv.add x (SIloc.singleton Default) acc) locvars Mv.empty in
+    Sv.fold
+      (fun x acc -> Mv.add x (SIloc.singleton (Instruction (Jasmin.Location.i_loc0 f.f_loc))) acc)
+      (params f) s
 
 let add xs i = Sv.fold (fun x -> Mv.add x (SIloc.singleton i)) xs
 

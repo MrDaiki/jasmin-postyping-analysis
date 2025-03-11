@@ -21,8 +21,7 @@ mode : check_mode mode of the analysis
 errors : list of error found during analysis
 *)
 type iv_data =
-{ locals: Sv.t
-; mode: check_mode
+{ mode: check_mode
 ; errors: compile_error list }
 
 (*
@@ -35,6 +34,8 @@ let is_local (v : int ggvar) =
     | Slocal -> true
     | _ -> false
 
+let is_local_gv (v : var) = not (Jasmin.Prog.V.is_glob v)
+
 (*
 Error checking function of the analysis. Check if variable `var` passed as argument is initialised in the current domain. It also check if the variable is local (because initialisation problem only make sense for local variables).
 args :
@@ -46,7 +47,7 @@ return : iv_data (updated the list of error if `var` is not initialised)
 *)
 let _inner_check_iv_error (data : iv_data) (domain : Domain.t) (loc : Jasmin.Location.t) (var : var)
     =
-    if Sv.mem var data.locals then
+    if is_local_gv var then
       match Mv.find_opt var domain with
       | None -> assert false (*This case is not possible with current version*)
       | Some iset ->
@@ -107,11 +108,7 @@ module InitVarCheckerLogic :
       | Pconst _ -> self
       | Pbool _ -> self
       | Parr_init _ -> self
-      | Pvar var ->
-          if Sv.mem (L.unloc var.gv) self.locals then
-            check_iv_error self domain var.gv
-          else
-            self
+      | Pvar var -> check_iv_error self domain var.gv
       | Pget (_, _, _, var, expr) ->
           let self = check_expr self domain loc expr in
           check_iv_error self domain var.gv

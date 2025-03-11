@@ -8,9 +8,7 @@ module InitVarVisitor :
   ExpressionChecker.S with type self = iv_data and type annotation = Rd.Domain.t =
   ExpressionChecker.Make (InitVarCheckerLogic)
 
-let get_all_locals funcs = List.fold_left (fun acc f -> Sv.union acc (Prog.locals f)) Sv.empty funcs
-
-let initial_state funcs : iv_data = {locals= get_all_locals funcs; mode= NotStrict; errors= []}
+let initial_state : iv_data = {mode= NotStrict; errors= []}
 
 let iv_prog ((globs, funcs) : ('info, 'asm) prog) (mode : check_mode) =
     let funcs =
@@ -24,6 +22,6 @@ let iv_prog ((globs, funcs) : ('info, 'asm) prog) (mode : check_mode) =
           funcs
     in
     let prog = (globs, funcs) in
-    let data = {(initial_state funcs) with mode} in
+    let data = {initial_state with mode} in
     let data = InitVarVisitor.visit_prog prog data in
     (prog, List.rev data.errors)
