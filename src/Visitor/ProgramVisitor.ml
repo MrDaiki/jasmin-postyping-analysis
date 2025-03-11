@@ -100,8 +100,6 @@ end
 
      type annotation = unit
 
-     let initial_state : data = Sf.empty
-
      let visit_funcall
          (loc : L.i_loc)
          (annot : annotation)
