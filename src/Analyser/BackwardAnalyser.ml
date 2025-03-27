@@ -18,12 +18,17 @@ module type BackwardAnalyserLogic = sig
 
      returns :
      - bool : true if the fixpoint is reached, false otherwise
-     *)
+
+    Inclusion : for all A1, A2 , (included A1 A2) => for all s , (s in I(A2) => s in I(A1)) 
+  *)
   val included : annotation -> annotation -> bool
 
-  val account : int gexpr -> annotation -> annotation
-
-  val merge : annotation -> annotation -> annotation
+  (**
+  
+    Account : for all A1, A2, e, s , s in I(account e A1 A2) => if [e]s then s in I(A1) else s in I(A2)
+    eq : for all A1, A2, e, s , s in I(account e A1 A2) => s in I(if [e]s then A1 else A2)
+  *)
+  val account : int gexpr -> annotation -> annotation -> annotation
 
   (** Function that remove a proxy variable from the annotation if necessary
        Some part of the tree walking will introduce proxy variables to handle some specific cases.
@@ -69,7 +74,7 @@ module BackwardAnalyser = struct
        returns :
        - Prog.func (annotated function)
        - annotation (out annotation)
-       *)
+    *)
     val analyse_function :
       ('info, 'asm) Prog.func -> annotation -> (annotation, 'asm) Prog.func * annotation
   end
@@ -104,10 +109,9 @@ module BackwardAnalyser = struct
         variable
         (range : int grange)
         (body : ('info, 'asm) stmt)
-        in_domain : (int, annotation, 'asm) ginstr_r * annotation =
+        out_domain : (int, annotation, 'asm) ginstr_r * annotation =
         let proxy_var = build_for_proxy_variable loc.base_loc variable in
         let condition = build_for_condition_expr proxy_var range in
-        let domain = L.account condition in_domain in
         let rec loop in_domain =
             let _, domain =
                 (* Incrementing loop counter (proxy_var (+|-)= 1) *)
@@ -122,12 +126,14 @@ module BackwardAnalyser = struct
                   (Pvar {gv= proxy_var; gs= Slocal})
                   domain
             in
-            if L.included in_domain domain then
+            let domain = L.account condition domain in_domain in
+            (* Check if the loop is finished *)
+            if L.included domain in_domain then
               (Cfor (variable, range, body), domain)
             else
-              loop (L.merge in_domain domain)
+              loop domain
         in
-        let body, domain = loop domain in
+        let body, domain = loop out_domain in
         let _, domain =
             (* Assigning proxy_var to range beginning*)
             analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
@@ -142,18 +148,20 @@ module BackwardAnalyser = struct
         ((a, _) : IInfo.t * 'info)
         (b1 : (int, 'info, 'asm) gstmt)
         (b2 : (int, 'info, 'asm) gstmt)
-        (in_domain : annotation) =
-        let domain = L.account cond in_domain in
+        (out_domain : annotation) =
+        (*
+        Invariant : L.included out_domain cond_out_domain
+        *)
         let rec loop (cond_out_domain : annotation) =
             let b1, domain_b1 = analyse_stmt b1 cond_out_domain in
             let b2, domain_b2 = analyse_stmt b2 domain_b1 in
-            let domain = L.account cond domain_b2 in
-            if L.included cond_out_domain domain then
-              (Cwhile (al, b1, cond, (a, L.merge domain_b2 in_domain), b2), domain_b1)
+            let domain = L.account cond domain_b2 cond_out_domain in
+            if L.included domain cond_out_domain then
+              (Cwhile (al, b1, cond, (a, domain), b2), domain_b1)
             else
-              loop (L.merge cond_out_domain domain)
+              loop domain
         in
-        loop domain
+        loop out_domain
 
     and analyse_instr_r
         (loc : Location.i_loc)
@@ -170,10 +178,10 @@ module BackwardAnalyser = struct
         | Csyscall (lvs, sc, es) ->
             let domain = L.syscall loc lvs sc es domain in
             (Csyscall (lvs, sc, es), domain)
-        | Cif (expr, th, el) ->
+        | Cif (cond, th, el) ->
             let th, domain_th = analyse_stmt th domain in
             let el, domain_el = analyse_stmt el domain in
-            (Cif (expr, th, el), L.account expr (L.merge domain_th domain_el))
+            (Cif (cond, th, el), L.account cond domain_th domain_el)
         | Cfor (var, range, bloc) -> analyse_for loc var range bloc domain
         | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 domain
 
