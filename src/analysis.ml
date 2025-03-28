@@ -1,6 +1,8 @@
 open Cmdliner
+open Liveness.LivenessAnalyser
 open Jasmin
 open ArchDef
+open DeadCode.DeadCodeVisitor
 
 let parse_prog filepath : ('info, 'asm) Prog.prog =
     try
@@ -17,6 +19,15 @@ let parse_prog filepath : ('info, 'asm) Prog.prog =
         Format.eprintf "usage: %s FILE" Sys.argv.(0) ;
         exit 4
 
+let pinfo_term analysis_name =
+    let doc =
+        Arg.info ~docv:"info"
+          ~doc:
+            (Format.asprintf "If set, will print annoted program with %s analysis result."
+               analysis_name )
+    in
+    Arg.(value & flag & doc ["info"])
+
 let report_bug_string = "Report bugs to <https://github.com/MrDaiki/jasmin-postyping-analysis>"
 
 type ('info, 'asm) init_var_arg =
@@ -24,7 +35,13 @@ type ('info, 'asm) init_var_arg =
 ; pinfo: bool
 ; prog: ('info, 'asm) Prog.prog }
 
-type ('info, 'asm) command_configuration = InitVar of ('info, 'asm) init_var_arg
+type ('info, 'asm) dead_code_arg =
+{ prog: ('info, 'asm) Prog.prog
+; pinfo: bool }
+
+type ('info, 'asm) command_configuration =
+| InitVar of ('info, 'asm) init_var_arg
+| DeadCode of ('info, 'asm) dead_code_arg
 
 let run configuration =
     match configuration with
@@ -37,12 +54,39 @@ let run configuration =
           (fun (module Err : Error.CompileError.CompileError) ->
             Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
           err
+    | DeadCode {pinfo; prog} ->
+        let prog, err = dc_prog prog in
+        if pinfo then
+          Printer.pp_iprog ~debug:false LivenessDomain.pp_annot Arch.reg_size Arch.asmOp
+            Format.std_formatter prog ;
+        List.iter
+          (fun (module Err : Error.CompileError.CompileError) ->
+            Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
+          err
 
 let filepath_arg =
     let doc = "Path of the input jasmin file" in
     Arg.(required & pos 0 (some string) None & info [] ~docv:"FILE" ~doc)
 
 let file_term = Term.(const parse_prog $ filepath_arg)
+
+module DeadCodeCli = struct
+  let name = "deadcode"
+
+  let doc = "Execute liveness analysis and show all dead variable assigned in the program."
+
+  let man = [`S Manpage.s_bugs; `P report_bug_string]
+
+  let pinfo_term = pinfo_term "liveness"
+
+  let term run =
+      let combine prog pinfo = run (DeadCode {prog; pinfo}) in
+      Term.(const combine $ file_term $ pinfo_term)
+
+  let cmd run =
+      let doc = Cmd.info name ~doc ~man in
+      Cmd.v doc (term run)
+end
 
 module InitVarCli = struct
   let name = "initvars"
@@ -66,12 +110,7 @@ module InitVarCli = struct
       in
       Term.(const flag_to_mode $ Arg.(value & flag & doc ["strict"]))
 
-  let pinfo_term =
-      let doc =
-          Arg.info ~docv:"info"
-            ~doc:"If set, will print annoted program with reaching definition analysis result."
-      in
-      Arg.(value & flag & doc ["info"])
+  let pinfo_term = pinfo_term "reaching definition"
 
   let term run =
       let combine prog strict pinfo = run (InitVar {strict; pinfo; prog}) in
@@ -93,7 +132,7 @@ module MainCLI = struct
 
   let info = Cmd.info name ~doc ~man
 
-  let commands run = [InitVarCli.cmd run]
+  let commands run = [InitVarCli.cmd run; DeadCodeCli.cmd run]
 
   let run () = Cmd.group info (commands run) |> Cmd.eval |> exit
 end

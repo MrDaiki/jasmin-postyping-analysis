@@ -30,7 +30,7 @@ let pp_sv fmt sv =
 module LivenessDomain : BackwardAnalyserLogic with type annotation = Sv.t = struct
   type annotation = Sv.t
 
-  let lived_variables = List.fold_left (fun acc lv -> Sv.add (L.unloc lv) acc) Sv.empty
+  let empty = Sv.empty
 
   let dead_variables domain expr = Sv.fold (fun v dom -> Sv.add v dom) (Prog.vars_e expr) domain
 
@@ -42,8 +42,6 @@ module LivenessDomain : BackwardAnalyserLogic with type annotation = Sv.t = stru
       let d1 = Sv.fold (fun v dom -> Sv.add v dom) (Prog.vars_e expr) d1 in
       let d2 = Sv.fold (fun v dom -> Sv.add v dom) (Prog.vars_e expr) d2 in
       merge d1 d2
-
-  let merge = Sv.union
 
   let forget var domain = Sv.remove (L.unloc var) domain
 

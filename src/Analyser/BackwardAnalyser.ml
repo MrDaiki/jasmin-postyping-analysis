@@ -21,6 +21,9 @@ module type BackwardAnalyserLogic = sig
 
     Inclusion : for all A1, A2 , (included A1 A2) => for all s , (s in I(A2) => s in I(A1)) 
   *)
+
+  val empty : annotation
+
   val included : annotation -> annotation -> bool
 
   (**
@@ -75,8 +78,7 @@ module BackwardAnalyser = struct
        - Prog.func (annotated function)
        - annotation (out annotation)
     *)
-    val analyse_function :
-      ('info, 'asm) Prog.func -> annotation -> (annotation, 'asm) Prog.func * annotation
+    val analyse_function : ('info, 'asm) Prog.func -> annotation -> (annotation, 'asm) Prog.func
   end
 
   (** Functor used to build TreeAnalyser modules*)
@@ -152,6 +154,8 @@ module BackwardAnalyser = struct
         (*
         Invariant : L.included out_domain cond_out_domain
         *)
+        let domain = L.account cond out_domain L.empty in
+        (* Incrementing loop counter (proxy_var (+|-)= 1) *)
         let rec loop (cond_out_domain : annotation) =
             let b1, domain_b1 = analyse_stmt b1 cond_out_domain in
             let b2, domain_b2 = analyse_stmt b2 domain_b1 in
@@ -161,7 +165,7 @@ module BackwardAnalyser = struct
             else
               loop domain
         in
-        loop out_domain
+        loop domain
 
     and analyse_instr_r
         (loc : Location.i_loc)
@@ -202,19 +206,18 @@ module BackwardAnalyser = struct
         (stmt, out_domain)
 
     let analyse_function (func : ('info, 'asm) Prog.func) (in_domain : annotation) :
-        (annotation, 'asm) Prog.func * annotation =
+        (annotation, 'asm) Prog.func =
         let body, out_domain = analyse_stmt func.f_body in_domain in
-        ( { f_loc= func.f_loc
-          ; f_annot= func.f_annot
-          ; f_cc= func.f_cc
-          ; f_info= out_domain
-          ; f_name= func.f_name
-          ; f_tyin= func.f_tyin
-          ; f_args= func.f_args
-          ; f_body= body
-          ; f_tyout= func.f_tyout
-          ; f_outannot= func.f_outannot
-          ; f_ret= func.f_ret }
-        , out_domain )
+        { f_loc= func.f_loc
+        ; f_annot= func.f_annot
+        ; f_cc= func.f_cc
+        ; f_info= out_domain
+        ; f_name= func.f_name
+        ; f_tyin= func.f_tyin
+        ; f_args= func.f_args
+        ; f_body= body
+        ; f_tyout= func.f_tyout
+        ; f_outannot= func.f_outannot
+        ; f_ret= func.f_ret }
   end
 end
