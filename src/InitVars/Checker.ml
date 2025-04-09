@@ -5,6 +5,8 @@ open Types
 open InitVarError
 open Error.CompileError
 
+type annotation = Rd.RdAnalyser.ReachingDefinitionAnalyser.annotation
+
 (**
 Check mode for initialised variable analysis 
 - Strict : Check if a path exists where variable may not be initialised (can trigger false positive)
@@ -73,22 +75,25 @@ args :
 - var : var_i variable to check
 return : iv_data (updated state)
 *)
-let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data =
-    let loc, var = (L.loc var, L.unloc var) in
-    match var.v_ty with
-    | Arr _ -> (
-        match var.v_kind with
-        | Stack Direct
-         |Reg (_, Direct) ->
-            data
+let check_iv_error (data : iv_data) (domain : annotation) (var : var_i) : iv_data =
+    match domain with
+    | Empty -> assert false
+    | Annotation domain -> (
+        let loc, var = (L.loc var, L.unloc var) in
+        match var.v_ty with
+        | Arr _ -> (
+            match var.v_kind with
+            | Stack Direct
+             |Reg (_, Direct) ->
+                data
+            | _ -> _inner_check_iv_error data domain loc var )
         | _ -> _inner_check_iv_error data domain loc var )
-    | _ -> _inner_check_iv_error data domain loc var
 
 module InitVarCheckerLogic :
   Visitor.ExpressionChecker.ExpressionCheckerLogic
-    with type domain = Domain.t
+    with type domain = annotation
      and type self = iv_data = struct
-  type domain = Domain.t
+  type domain = annotation
 
   type self = iv_data
 

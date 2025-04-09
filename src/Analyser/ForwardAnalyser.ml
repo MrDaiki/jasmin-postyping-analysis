@@ -4,7 +4,11 @@ open Types
 
 module type ForwardAnalyserLogic = sig
   (** type of annotation for the program*)
-  type annotation
+  type domain
+
+  type annotation =
+  | Empty
+  | Annotation of domain
 
   (** Function that take input and output domain and convert them to annotation type*)
 
@@ -21,7 +25,7 @@ module type ForwardAnalyserLogic = sig
   returns :
   - bool : true if the fixpoint is reached, false otherwise
   *)
-  val included : annotation -> annotation -> bool
+  val included : domain -> domain -> bool
 
   (** 
   Function that return two annotations on a branching of the program.
@@ -34,7 +38,7 @@ module type ForwardAnalyserLogic = sig
   - annotation * annotation 
 
   *)
-  val assume : expr -> annotation -> annotation * annotation
+  val assume : expr -> domain -> annotation * annotation
 
   (** Function that merge two annotations
   It is called at the end of branching in a program.
@@ -45,13 +49,13 @@ module type ForwardAnalyserLogic = sig
   returns : 
   - annotation : merged annotation
   *)
-  val merge : annotation -> annotation -> annotation
+  val merge : domain -> domain -> domain
 
   (** Function that remove a proxy variable from the annotation if necessary 
     Some part of the tree walking will introduce proxy variables to handle some specific cases.
     This function is called to remove them from the annotation when they are not needed anymore
   *)
-  val forget : var_i -> annotation -> annotation
+  val forget : domain -> var_i -> annotation
 
   val funcall : Location.i_loc -> lvals -> funname -> exprs -> annotation -> annotation
 
@@ -91,8 +95,36 @@ module ForwardAnalyser = struct
   module Make (Logic : ForwardAnalyserLogic) : S with type annotation = Logic.annotation = struct
     type annotation = Logic.annotation
 
-    let analyse_assign (loc : Location.i_loc) (lv : lval) tag ty (expr : expr) domain =
-        let domain = Logic.assign loc lv tag ty expr domain in
+    let merge (a1 : annotation) (a2 : annotation) =
+        match (a1, a2) with
+        | Empty, _ -> a2
+        | _, Empty -> a1
+        | Annotation d1, Annotation d2 -> Annotation (Logic.merge d1 d2)
+
+    let assume (annotation : Logic.annotation) (expr : expr) : Logic.annotation * Logic.annotation =
+        match annotation with
+        | Empty -> (Empty, Empty)
+        | Annotation d -> Logic.assume expr d
+
+    let forget (annotation : Logic.annotation) (var : var_i) : Logic.annotation =
+        match annotation with
+        | Empty -> Empty
+        | Annotation d -> Logic.forget d var
+
+    let included (prev : Logic.annotation) (domain : Logic.annotation) : bool =
+        match (prev, domain) with
+        | Empty, _ -> true
+        | _, Empty -> false
+        | Annotation d1, Annotation d2 -> Logic.included d1 d2
+
+    let analyse_assign
+        (loc : Location.i_loc)
+        (lv : lval)
+        tag
+        ty
+        (expr : expr)
+        (annotation : annotation) =
+        let domain = Logic.assign loc lv tag ty expr annotation in
         (Cassgn (lv, tag, ty, expr), domain)
 
     let build_for_proxy_variable loc (x : var_i) : var_i =
@@ -112,38 +144,42 @@ module ForwardAnalyser = struct
     (**
     For function analysis. To analyse 
     *)
-    let rec analyse_for (loc : Location.i_loc) variable (range : int grange) body in_domain :
-        (int, annotation, 'asm) ginstr_r * annotation =
+    let rec analyse_for
+        (loc : Location.i_loc)
+        variable
+        (range : int grange)
+        body
+        (in_annomtation : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
         (* Defining proxy variable *)
         let proxy_var = build_for_proxy_variable loc.base_loc variable in
         (* First assign to range begin*)
-        let _, domain =
+        let _, annotation =
             analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
-              (Grange.first range) in_domain
+              (Grange.first range) in_annomtation
         in
         (* Building loop out condition *)
         let condition = build_for_condition_expr proxy_var range in
-        let rec loop prev =
-            let domain, result = Logic.assume condition prev in
-            let _, domain =
+        let rec loop (prev : annotation) =
+            let annotation, out_annotation = assume prev condition in
+            let _, annotation =
                 (* Assigning proxy_var to for variable*)
                 analyse_assign loc (Lvar variable) AT_none (Location.unloc variable).v_ty
                   (Pvar {gv= proxy_var; gs= Slocal})
-                  domain
+                  annotation
             in
-            let body, domain = analyse_stmt body domain in
+            let body, annotation = analyse_stmt body annotation in
             let _, domain =
                 analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
                   (build_for_assign_expr proxy_var range)
-                  domain
+                  annotation
             in
-            if Logic.included prev domain then
-              (Cfor (variable, range, body), result)
+            if included prev domain then
+              (Cfor (variable, range, body), out_annotation)
             else
-              loop (Logic.merge prev domain)
+              loop (merge prev domain)
         in
-        let body, domain = loop domain in
-        (body, Logic.forget proxy_var domain (* Should we really remove the proxy_var ?*))
+        let body, annotation = loop annotation in
+        (body, forget annotation proxy_var)
 
     and analyse_while
         (al : E.align)
@@ -151,54 +187,54 @@ module ForwardAnalyser = struct
         ((a, _) : IInfo.t * 'info)
         (b1 : ('info, 'asm) stmt)
         (b2 : ('info, 'asm) stmt)
-        (domain : annotation) =
+        (annotation : annotation) =
         let rec loop (prev : annotation) =
-            let b1, domain_s1 = analyse_stmt b1 prev in
-            let domain, result = Logic.assume cond domain_s1 in
-            let b2, domain_s2 = analyse_stmt b2 domain in
-            if Logic.included prev domain_s2 then
-              (Cwhile (al, b1, cond, (a, domain_s1), b2), result)
+            let b1, annotation_s1 = analyse_stmt b1 prev in
+            let annotation, result = assume annotation_s1 cond in
+            let b2, annotation_s2 = analyse_stmt b2 annotation in
+            if included prev annotation_s2 then
+              (Cwhile (al, b1, cond, (a, annotation_s1), b2), result)
             else
-              loop (Logic.merge domain_s2 prev)
+              loop (merge annotation_s2 prev)
         in
-        let cwhile, result = loop domain in
+        let cwhile, result = loop annotation in
         (cwhile, result)
 
     and analyse_instr_r
         (loc : Location.i_loc)
         (instr : (int, 'info, 'asm) ginstr_r)
-        (domain : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
+        (annotation : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
         match instr with
-        | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr domain
+        | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr annotation
         | Copn (lvs, tag, sopn, es) ->
-            let domain = Logic.opn loc lvs tag sopn es domain in
-            (Copn (lvs, tag, sopn, es), domain)
+            let annotation = Logic.opn loc lvs tag sopn es annotation in
+            (Copn (lvs, tag, sopn, es), annotation)
         | Ccall (lvs, fn, es) ->
-            let domain = Logic.funcall loc lvs fn es domain in
-            (Ccall (lvs, fn, es), domain)
+            let annotation = Logic.funcall loc lvs fn es annotation in
+            (Ccall (lvs, fn, es), annotation)
         | Csyscall (lvs, sc, es) ->
-            let domain = Logic.syscall loc lvs sc es domain in
-            (Csyscall (lvs, sc, es), domain)
+            let annotation = Logic.syscall loc lvs sc es annotation in
+            (Csyscall (lvs, sc, es), annotation)
         | Cif (expr, th, el) ->
-            let domain_th, domain_el = Logic.assume expr domain in
+            let domain_th, domain_el = assume annotation expr in
             let th, domain_th = analyse_stmt th domain_th in
             let el, domain_el = analyse_stmt el domain_el in
-            (Cif (expr, th, el), Logic.merge domain_th domain_el)
-        | Cfor (var, range, bloc) -> analyse_for loc var range bloc domain
-        | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 domain
+            (Cif (expr, th, el), merge domain_th domain_el)
+        | Cfor (var, range, bloc) -> analyse_for loc var range bloc annotation
+        | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 annotation
 
-    and analyse_instr (in_domain : annotation) (instr : ('info, 'asm) instr) :
+    and analyse_instr (in_annotation : annotation) (instr : ('info, 'asm) instr) :
         annotation * (annotation, 'asm) instr =
-        let instr_r, out_domain = analyse_instr_r instr.i_loc instr.i_desc in_domain in
-        (out_domain, {instr with i_desc= instr_r; i_info= in_domain})
+        let instr_r, out_annotation = analyse_instr_r instr.i_loc instr.i_desc in_annotation in
+        (out_annotation, {instr with i_desc= instr_r; i_info= in_annotation})
 
-    and analyse_stmt (stmt : ('info, 'asm) stmt) domain =
-        let out_domain, stmt = List.fold_left_map analyse_instr domain stmt in
-        (stmt, out_domain)
+    and analyse_stmt (stmt : ('info, 'asm) stmt) in_annotation =
+        let out_annotation, stmt = List.fold_left_map analyse_instr in_annotation stmt in
+        (stmt, out_annotation)
 
-    let analyse_function (func : ('info, 'asm) Prog.func) (in_domain : annotation) :
+    let analyse_function (func : ('info, 'asm) Prog.func) (in_annotation : annotation) :
         (annotation, 'asm) Prog.func =
-        let body, out_domain = analyse_stmt func.f_body in_domain in
-        {func with f_info= out_domain; f_body= body}
+        let body, out_annotation = analyse_stmt func.f_body in_annotation in
+        {func with f_info= out_annotation; f_body= body}
   end
 end

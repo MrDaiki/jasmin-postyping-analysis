@@ -1,15 +1,19 @@
 module ReachingDefinitionLogic : sig
-  type annotation = Domain.t
+  type domain = Domain.t
+
+  type annotation =
+  | Empty
+  | Annotation of domain
 
   val pp_annot : Format.formatter -> Jasmin.Location.i_loc * annotation -> unit
 
-  val included : annotation -> annotation -> bool
+  val included : domain -> domain -> bool
 
-  val assume : Jasmin.Prog.expr -> annotation -> annotation * annotation
+  val assume : Jasmin.Prog.expr -> domain -> annotation * annotation
 
-  val merge : annotation -> annotation -> annotation
+  val merge : domain -> domain -> domain
 
-  val forget : Jasmin.Prog.var_i -> annotation -> annotation
+  val forget : domain -> Jasmin.Prog.var_i -> annotation
 
   val funcall :
        Jasmin.Location.i_loc
