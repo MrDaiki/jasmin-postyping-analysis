@@ -10,6 +10,6 @@ mkShell {
       };
     }))
   ] ++ (with ocaml-ng.ocamlPackages; [
-    ocaml findlib angstrom dune_3 ocaml-lsp ocamlformat merlin cmdliner
+    ocaml findlib angstrom dune_3 ocaml-lsp ocamlformat merlin cmdliner yojson ppx_yojson_conv
   ]);
 }

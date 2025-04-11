@@ -11,8 +11,6 @@ module type CompileError = sig
 
   val code : string
 
-  val to_serial : Format.formatter -> unit -> unit
-
   val to_text : Format.formatter -> unit -> unit
 end
 

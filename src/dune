@@ -1,5 +1,7 @@
 (executable
  (name analysis)
- (libraries jasmin.jasmin cmdliner))
+ (libraries jasmin.jasmin cmdliner yojson ppx_yojson_conv)
+ (preprocess
+  (pps ppx_yojson_conv)))
 
 (include_subdirs qualified)

@@ -28,15 +28,24 @@ let pinfo_term analysis_name =
     in
     Arg.(value & flag & doc ["info"])
 
+let json_term =
+    let doc =
+        Arg.info ~docv:"json"
+          ~doc:(Format.asprintf "If set, will print the error result of analysis in json format.")
+    in
+    Arg.(value & flag & doc ["json"])
+
 let report_bug_string = "Report bugs to <https://github.com/MrDaiki/jasmin-postyping-analysis>"
 
 type ('info, 'asm) init_var_arg =
 { strict: InitVars.Checker.check_mode
 ; pinfo: bool
+; json: bool
 ; prog: ('info, 'asm) Prog.prog }
 
 type ('info, 'asm) dead_code_arg =
 { prog: ('info, 'asm) Prog.prog
+; json: bool
 ; pinfo: bool }
 
 type ('info, 'asm) command_configuration =
@@ -45,24 +54,38 @@ type ('info, 'asm) command_configuration =
 
 let run configuration =
     match configuration with
-    | InitVar {strict; pinfo; prog} ->
+    | InitVar {strict; pinfo; json; prog} ->
         let prog, err = InitVars.Check.iv_prog prog strict in
         if pinfo then
           Printer.pp_iprog ~debug:false Rd.RdAnalyser.ReachingDefinitionLogic.pp_annot Arch.reg_size
             Arch.asmOp Format.std_formatter prog ;
-        List.iter
-          (fun (module Err : Error.CompileError.CompileError) ->
-            Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
-          err
-    | DeadCode {pinfo; prog} ->
+        if json then
+          let json =
+              Error.SerialErrorBuilder.serialize_errors
+                (List.map Error.SerialErrorBuilder.build_payload err)
+          in
+          Format.eprintf "%s@." json
+        else
+          List.iter
+            (fun (module Err : Error.CompileError.CompileError) ->
+              Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
+            err
+    | DeadCode {pinfo; json; prog} ->
         let prog, err = dc_prog prog in
         if pinfo then
           Printer.pp_iprog ~debug:false LivenessDomain.pp_annot Arch.reg_size Arch.asmOp
             Format.std_formatter prog ;
-        List.iter
-          (fun (module Err : Error.CompileError.CompileError) ->
-            Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
-          err
+        if json then
+          let json =
+              Error.SerialErrorBuilder.serialize_errors
+                (List.map Error.SerialErrorBuilder.build_payload err)
+          in
+          Format.eprintf "%s@." json
+        else
+          List.iter
+            (fun (module Err : Error.CompileError.CompileError) ->
+              Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
+            err
 
 let filepath_arg =
     let doc = "Path of the input jasmin file" in
@@ -80,8 +103,8 @@ module DeadCodeCli = struct
   let pinfo_term = pinfo_term "liveness"
 
   let term run =
-      let combine prog pinfo = run (DeadCode {prog; pinfo}) in
-      Term.(const combine $ file_term $ pinfo_term)
+      let combine prog pinfo json = run (DeadCode {prog; pinfo; json}) in
+      Term.(const combine $ file_term $ pinfo_term $ json_term)
 
   let cmd run =
       let doc = Cmd.info name ~doc ~man in
@@ -113,8 +136,8 @@ module InitVarCli = struct
   let pinfo_term = pinfo_term "reaching definition"
 
   let term run =
-      let combine prog strict pinfo = run (InitVar {strict; pinfo; prog}) in
-      Term.(const combine $ file_term $ strict_term $ pinfo_term)
+      let combine prog strict pinfo json = run (InitVar {strict; pinfo; prog; json}) in
+      Term.(const combine $ file_term $ strict_term $ pinfo_term $ json_term)
 
   let cmd run =
       let doc = Cmd.info name ~doc ~man in

@@ -15,8 +15,6 @@ end) : CompileError = struct
 
   let error_strategy = Error.Recover.Fail
 
-  let to_serial fmt () = Format.fprintf fmt "{}"
-
   let to_text fmt () =
       Format.fprintf fmt "Variable '%s' (declared at : %s) not initialized" payload.v_name
         (Jasmin.Location.tostring payload.v_dloc)

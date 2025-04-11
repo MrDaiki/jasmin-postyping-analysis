@@ -16,8 +16,6 @@ struct
 
   let code = "DC-E001"
 
-  let to_serial fmt () = Format.fprintf fmt "{\"error\":%s}" code
-
   let to_text fmt () =
       Format.fprintf fmt "Variable '%a' is assigned but never used"
         (Jasmin.Printer.pp_var ~debug:false)
