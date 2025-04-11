@@ -158,7 +158,7 @@ let dc_prog ((globs, funcs) : ('info, 'asm) prog) =
     let funcs =
         List.map
           (fun f ->
-            let f = LivenessAnalyser.analyse_function f LivenessDomain.empty in
+            let f = LivenessAnalyser.analyse_function f in
             f )
           funcs
     in

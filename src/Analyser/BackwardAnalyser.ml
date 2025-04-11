@@ -60,6 +60,8 @@ module type BackwardAnalyserLogic = sig
     -> int gexprs
     -> annotation
     -> annotation
+
+  val initialize : ('info, 'asm) func -> annotation
 end
 
 module BackwardAnalyser = struct
@@ -78,7 +80,7 @@ module BackwardAnalyser = struct
        - Prog.func (annotated function)
        - annotation (out annotation)
     *)
-    val analyse_function : ('info, 'asm) Prog.func -> annotation -> (annotation, 'asm) Prog.func
+    val analyse_function : ('info, 'asm) Prog.func -> (annotation, 'asm) Prog.func
   end
 
   (** Functor used to build TreeAnalyser modules*)
@@ -201,12 +203,13 @@ module BackwardAnalyser = struct
               (fun instr (back_domain, acc) ->
                 let out_domain, instr = analyse_instr back_domain instr in
                 (out_domain, instr :: acc) )
-              (List.rev stmt) (domain, [])
+              stmt (domain, [])
         in
         (stmt, out_domain)
 
-    let analyse_function (func : ('info, 'asm) Prog.func) (in_domain : annotation) :
-        (annotation, 'asm) Prog.func =
+    let analyse_function (func : ('info, 'asm) Prog.func) : (annotation, 'asm) Prog.func =
+        let in_domain = L.initialize func in
+        (* The function is analysed in the context of the initial domain *)
         let body, out_domain = analyse_stmt func.f_body in_domain in
         { f_loc= func.f_loc
         ; f_annot= func.f_annot

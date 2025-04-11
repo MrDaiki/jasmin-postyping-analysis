@@ -104,6 +104,10 @@ let sign_integer (z : Z.t) : signess =
     | z when z > Z.of_int 0 -> StrictPositive
     | _ -> StrictNegative
 
+(* Knowing a domain, return the sign value of an expression : 
+If a variable is not found in the domain, then the value of Signess of this variable is considered as Undefined
+
+*)
 let rec sign_expression (e : expr) registry : signess =
     match e with
     | Pconst z -> sign_integer z
