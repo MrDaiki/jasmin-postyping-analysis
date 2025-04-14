@@ -4,6 +4,7 @@ open Sign
 open Domain
 open Analyser.ForwardAnalyser
 open Expr
+open Analyser.Annotation
 
 let reduce_lt_left sign_x sign_y =
     match (sign_x, sign_y) with
@@ -45,15 +46,17 @@ let reduce_lt_right sign_x sign_y =
     | (Positive | Zero | StrictPositive), Integer -> StrictPositive
     | _, Integer -> Integer
 
-let reduce_domain (e : expr) (sign : Sign.signess) (domain : SignDomain.t) : SignDomain.t =
+let reduce_domain (e : expr) (sign : Sign.signess) (domain : SignDomain.t) : SignDomain.t annotation
+    =
     match e with
     | Pvar v -> (
         match (L.unloc v.gv).v_ty with
         | Bty Int -> SignDomain.reduce (L.unloc v.gv) sign domain
-        | _ -> domain )
-    | _ -> domain
+        | _ -> Annotation domain )
+    | _ -> Annotation domain
 
-let rec condition_analysis (e : expr) (domain : SignDomain.t) : SignDomain.t * SignDomain.t =
+let rec condition_analysis (e : expr) (domain : SignDomain.t) :
+    SignDomain.t annotation * SignDomain.t annotation =
     match e with
     | Papp2 (Oeq Op_int, l, r) ->
         let l_sign, r_sign = (sign_expression l domain, sign_expression r domain) in
@@ -63,7 +66,8 @@ let rec condition_analysis (e : expr) (domain : SignDomain.t) : SignDomain.t * S
         let valid_r = reduce_domain r valid_sign domain in
         let invalid_l = reduce_domain l invalid_sign domain in
         let invalid_r = reduce_domain r invalid_sign domain in
-        (SignDomain.intersect valid_l valid_r, SignDomain.intersect invalid_l invalid_r)
+        ( merge_annotations valid_l valid_r SignDomain.intersect
+        , merge_annotations invalid_l invalid_r SignDomain.intersect )
     | Papp2 (Olt Cmp_int, l, r) ->
         let l_sign, r_sign = (sign_expression l domain, sign_expression r domain) in
         let valid_l_sign = reduce_lt_left l_sign r_sign in
@@ -74,14 +78,15 @@ let rec condition_analysis (e : expr) (domain : SignDomain.t) : SignDomain.t * S
         let valid_r = reduce_domain r valid_r_sign domain in
         let invalid_l = reduce_domain l invalid_l_sign domain in
         let invalid_r = reduce_domain r invalid_r_sign domain in
-        (SignDomain.intersect valid_l valid_r, SignDomain.intersect invalid_l invalid_r)
+        ( merge_annotations valid_l valid_r SignDomain.intersect
+        , merge_annotations invalid_l invalid_r SignDomain.intersect )
     | Papp2 (Ole Cmp_int, l, r) ->
         let lt, lf = condition_analysis (Papp2 (Olt Cmp_int, l, r)) domain in
         let et, ef = condition_analysis (Papp2 (Oeq Op_int, l, r)) domain in
-        (SignDomain.merge lt et, SignDomain.merge lf ef)
+        (merge_annotations lt et SignDomain.merge, merge_annotations lf ef SignDomain.merge)
     | Papp2 (Ogt Cmp_int, l, r) -> condition_analysis (Papp2 (Olt Cmp_int, r, l)) domain
     | Papp2 (Oge Cmp_int, l, r) -> condition_analysis (Papp2 (Ole Cmp_int, r, l)) domain
-    | _ -> (domain, domain)
+    | _ -> (Annotation domain, Annotation domain)
 
 let lv_int (lv : int glval) =
     match lv with
@@ -93,10 +98,10 @@ let lv_int (lv : int glval) =
 
 let lvs_int lvs = List.filter_map lv_int lvs
 
-module SignAnalyserLogic : ForwardAnalyserLogic with type annotation = SignDomain.t = struct
-  type annotation = SignDomain.t
+module SignAnalyserLogic : ForwardAnalyserLogic with type domain = SignDomain.t = struct
+  type domain = SignDomain.t
 
-  let pp_annot fmt = SignDomain.pp fmt
+  let pp_annot fmt v = pp_annotation SignDomain.pp fmt v
 
   let included prev state = SignDomain.included state prev
 
@@ -104,42 +109,51 @@ module SignAnalyserLogic : ForwardAnalyserLogic with type annotation = SignDomai
 
   let merge s1 s2 = SignDomain.merge s1 s2
 
-  let forget var state = SignDomain.remove (L.unloc var) state
+  let forget state var = Annotation (SignDomain.remove (L.unloc var) state)
 
-  let funcall _ lvs _ _ state =
+  let erase_domain lvs state =
       let int_lvs = lvs_int lvs in
-      let state =
-          List.fold_left (fun state lv -> SignDomain.erase lv Integer state) state int_lvs
-      in
-      state
+      List.fold_left
+        (fun state lv ->
+          match state with
+          | Empty -> Empty
+          | Annotation state -> SignDomain.erase lv Integer state )
+        state int_lvs
 
-  let syscall _ lvs _ _ state =
-      let int_lvs = lvs_int lvs in
-      let state =
-          List.fold_left (fun state lv -> SignDomain.erase lv Integer state) state int_lvs
-      in
-      state
+  let funcall _ lvs _ _ state = erase_domain lvs state
+
+  let syscall _ lvs _ _ state = erase_domain lvs state
 
   let assign _ lv _ _ expr state =
       let int_lvs = lvs_int [lv] in
       List.fold_left
-        (fun state lv -> SignDomain.erase lv (sign_expression expr state) state)
+        (fun state lv ->
+          match state with
+          | Empty -> Empty
+          | Annotation state -> SignDomain.erase lv (sign_expression expr state) state )
         state int_lvs
 
-  let opn _ lvs _ _ (exprs : exprs) state =
-      let combine = List.combine lvs exprs in
-      let compare_values =
-          List.filter_map
-            (fun (lv, expr) ->
-              match lv_int lv with
-              | Some lv -> Some (lv, sign_expression expr state)
-              | None -> None )
-            combine
-      in
-      List.fold_left (fun state (lv, sign) -> SignDomain.reduce lv sign state) state compare_values
+  let opn _ lvs _ _ (exprs : exprs) (state : SignDomain.t annotation) : SignDomain.t annotation =
+      match state with
+      | Empty -> Empty
+      | Annotation domain ->
+          let combine = List.combine lvs exprs in
+          let compare_values =
+              List.filter_map
+                (fun (lv, expr) ->
+                  match lv_int lv with
+                  | Some lv -> Some (lv, sign_expression expr domain)
+                  | None -> None )
+                combine
+          in
+          List.fold_left
+            (fun state (lv, sign) ->
+              match state with
+              | Empty -> Empty
+              | Annotation state -> SignDomain.reduce lv sign state )
+            state compare_values
 end
 
 module SignAnalyser = ForwardAnalyser.Make (SignAnalyserLogic)
 
-let sg_prog (_, funcs) =
-    List.map (fun f -> SignAnalyser.analyse_function f (SignDomain.empty f)) funcs
+let sg_prog (_, funcs) = List.map (fun f -> SignAnalyser.analyse_function f) funcs
