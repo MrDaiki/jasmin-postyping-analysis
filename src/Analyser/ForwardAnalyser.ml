@@ -1,19 +1,16 @@
 open Jasmin
 open Prog
 open Types
+open Annotation
 
 module type ForwardAnalyserLogic = sig
   (** type of annotation for the program*)
   type domain
 
-  type annotation =
-  | Empty
-  | Annotation of domain
-
   (** Function that take input and output domain and convert them to annotation type*)
 
   (** Pretty printing function*)
-  val pp_annot : Format.formatter -> Location.i_loc * annotation -> unit
+  val pp_annot : Format.formatter -> Location.i_loc * domain annotation -> unit
 
   (** Incusion test 
   Check if an annotation is included in another one. 
@@ -38,7 +35,7 @@ module type ForwardAnalyserLogic = sig
   - annotation * annotation 
 
   *)
-  val assume : expr -> domain -> annotation * annotation
+  val assume : expr -> domain -> domain annotation * domain annotation
 
   (** Function that merge two annotations
   It is called at the end of branching in a program.
@@ -55,28 +52,35 @@ module type ForwardAnalyserLogic = sig
     Some part of the tree walking will introduce proxy variables to handle some specific cases.
     This function is called to remove them from the annotation when they are not needed anymore
   *)
-  val forget : domain -> var_i -> annotation
+  val forget : domain -> var_i -> domain annotation
 
-  val funcall : Location.i_loc -> lvals -> funname -> exprs -> annotation -> annotation
+  val funcall :
+    Location.i_loc -> lvals -> funname -> exprs -> domain annotation -> domain annotation
 
   val syscall :
        Location.i_loc
     -> lvals
     -> BinNums.positive Syscall_t.syscall_t
     -> exprs
-    -> annotation
-    -> annotation
+    -> domain annotation
+    -> domain annotation
 
-  val assign : Location.i_loc -> lval -> E.assgn_tag -> ty -> expr -> annotation -> annotation
+  val assign :
+    Location.i_loc -> lval -> E.assgn_tag -> ty -> expr -> domain annotation -> domain annotation
 
   val opn :
-    Location.i_loc -> lvals -> E.assgn_tag -> 'asm Sopn.sopn -> exprs -> annotation -> annotation
+       Location.i_loc
+    -> lvals
+    -> E.assgn_tag
+    -> 'asm Sopn.sopn
+    -> exprs
+    -> domain annotation
+    -> domain annotation
 end
 
 module ForwardAnalyser = struct
   module type S = sig
-    (** anotation type*)
-    type annotation
+    type domain
 
     (**
     Entrypoint for analysis. Using previous domain, the domain for the next instruction is computed. Annotation are then generated using `AnalyserLogic.to_annotation` function
@@ -88,42 +92,40 @@ module ForwardAnalyser = struct
     returns :
     - Prog.func (annotated function)
     *)
-    val analyse_function : ('info, 'asm) Prog.func -> annotation -> (annotation, 'asm) Prog.func
+    val analyse_function :
+      ('info, 'asm) Prog.func -> domain annotation -> (domain annotation, 'asm) Prog.func
   end
 
   (** Functor used to build TreeAnalyser modules*)
-  module Make (Logic : ForwardAnalyserLogic) : S with type annotation = Logic.annotation = struct
-    type annotation = Logic.annotation
+  module Make (Logic : ForwardAnalyserLogic) : S with type domain = Logic.domain = struct
+    type domain = Logic.domain
 
-    let merge (a1 : annotation) (a2 : annotation) =
+    type annot = Logic.domain annotation
+
+    let merge (a1 : annot) (a2 : annot) =
         match (a1, a2) with
         | Empty, _ -> a2
         | _, Empty -> a1
         | Annotation d1, Annotation d2 -> Annotation (Logic.merge d1 d2)
 
-    let assume (annotation : Logic.annotation) (expr : expr) : Logic.annotation * Logic.annotation =
+    let assume (annotation : annot) (expr : expr) : annot * annot =
         match annotation with
         | Empty -> (Empty, Empty)
         | Annotation d -> Logic.assume expr d
 
-    let forget (annotation : Logic.annotation) (var : var_i) : Logic.annotation =
+    let forget (annotation : annot) (var : var_i) : annot =
         match annotation with
         | Empty -> Empty
         | Annotation d -> Logic.forget d var
 
-    let included (prev : Logic.annotation) (domain : Logic.annotation) : bool =
+    let included (prev : annot) (domain : annot) : bool =
         match (prev, domain) with
         | Empty, _ -> true
         | _, Empty -> false
         | Annotation d1, Annotation d2 -> Logic.included d1 d2
 
-    let analyse_assign
-        (loc : Location.i_loc)
-        (lv : lval)
-        tag
-        ty
-        (expr : expr)
-        (annotation : annotation) =
+    let analyse_assign (loc : Location.i_loc) (lv : lval) tag ty (expr : expr) (annotation : annot)
+        =
         let domain = Logic.assign loc lv tag ty expr annotation in
         (Cassgn (lv, tag, ty, expr), domain)
 
@@ -149,7 +151,7 @@ module ForwardAnalyser = struct
         variable
         (range : int grange)
         body
-        (in_annomtation : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
+        (in_annomtation : annot) : (int, annot, 'asm) ginstr_r * annot =
         (* Defining proxy variable *)
         let proxy_var = build_for_proxy_variable loc.base_loc variable in
         (* First assign to range begin*)
@@ -159,7 +161,7 @@ module ForwardAnalyser = struct
         in
         (* Building loop out condition *)
         let condition = build_for_condition_expr proxy_var range in
-        let rec loop (prev : annotation) =
+        let rec loop (prev : annot) =
             let annotation, out_annotation = assume prev condition in
             let _, annotation =
                 (* Assigning proxy_var to for variable*)
@@ -187,8 +189,8 @@ module ForwardAnalyser = struct
         ((a, _) : IInfo.t * 'info)
         (b1 : ('info, 'asm) stmt)
         (b2 : ('info, 'asm) stmt)
-        (annotation : annotation) =
-        let rec loop (prev : annotation) =
+        (annotation : annot) =
+        let rec loop (prev : annot) =
             let b1, annotation_s1 = analyse_stmt b1 prev in
             let annotation, result = assume annotation_s1 cond in
             let b2, annotation_s2 = analyse_stmt b2 annotation in
@@ -203,7 +205,7 @@ module ForwardAnalyser = struct
     and analyse_instr_r
         (loc : Location.i_loc)
         (instr : (int, 'info, 'asm) ginstr_r)
-        (annotation : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
+        (annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
         match instr with
         | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr annotation
         | Copn (lvs, tag, sopn, es) ->
@@ -223,8 +225,8 @@ module ForwardAnalyser = struct
         | Cfor (var, range, bloc) -> analyse_for loc var range bloc annotation
         | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 annotation
 
-    and analyse_instr (in_annotation : annotation) (instr : ('info, 'asm) instr) :
-        annotation * (annotation, 'asm) instr =
+    and analyse_instr (in_annotation : annot) (instr : ('info, 'asm) instr) :
+        annot * (annot, 'asm) instr =
         let instr_r, out_annotation = analyse_instr_r instr.i_loc instr.i_desc in_annotation in
         (out_annotation, {instr with i_desc= instr_r; i_info= in_annotation})
 
@@ -232,8 +234,8 @@ module ForwardAnalyser = struct
         let out_annotation, stmt = List.fold_left_map analyse_instr in_annotation stmt in
         (stmt, out_annotation)
 
-    let analyse_function (func : ('info, 'asm) Prog.func) (in_annotation : annotation) :
-        (annotation, 'asm) Prog.func =
+    let analyse_function (func : ('info, 'asm) Prog.func) (in_annotation : annot) :
+        (annot, 'asm) Prog.func =
         let body, out_annotation = analyse_stmt func.f_body in_annotation in
         {func with f_info= out_annotation; f_body= body}
   end

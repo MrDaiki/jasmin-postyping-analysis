@@ -4,8 +4,7 @@ open Rd
 open Types
 open InitVarError
 open Error.CompileError
-
-type annotation = Rd.RdAnalyser.ReachingDefinitionAnalyser.annotation
+open Analyser.Annotation
 
 (**
 Check mode for initialised variable analysis 
@@ -75,7 +74,7 @@ args :
 - var : var_i variable to check
 return : iv_data (updated state)
 *)
-let check_iv_error (data : iv_data) (domain : annotation) (var : var_i) : iv_data =
+let check_iv_error (data : iv_data) (domain : Rd.Domain.t annotation) (var : var_i) : iv_data =
     match domain with
     | Empty -> assert false
     | Annotation domain -> (
@@ -91,9 +90,9 @@ let check_iv_error (data : iv_data) (domain : annotation) (var : var_i) : iv_dat
 
 module InitVarCheckerLogic :
   Visitor.ExpressionChecker.ExpressionCheckerLogic
-    with type domain = annotation
+    with type domain = Rd.Domain.t annotation
      and type self = iv_data = struct
-  type domain = annotation
+  type domain = Rd.Domain.t annotation
 
   type self = iv_data
 

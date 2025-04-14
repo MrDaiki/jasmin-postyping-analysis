@@ -2,13 +2,10 @@ open Jasmin
 open Prog
 open Domain
 open Analyser.ForwardAnalyser
+open Analyser.Annotation
 
 module ReachingDefinitionLogic : ForwardAnalyserLogic with type domain = Domain.t = struct
   type domain = Domain.t
-
-  type annotation =
-  | Empty
-  | Annotation of domain
 
   let unwrap annot =
       match annot with
@@ -45,5 +42,5 @@ module ReachingDefinitionLogic : ForwardAnalyserLogic with type domain = Domain.
 end
 
 module ReachingDefinitionAnalyser :
-  ForwardAnalyser.S with type annotation = ReachingDefinitionLogic.annotation =
+  ForwardAnalyser.S with type domain = ReachingDefinitionLogic.domain =
   ForwardAnalyser.Make (ReachingDefinitionLogic)
