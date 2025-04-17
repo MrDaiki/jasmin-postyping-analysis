@@ -2,15 +2,21 @@ open Jasmin.Prog
 open Visitor.ProgramVisitor
 open DeadCodeError
 open Liveness.LivenessAnalyser
+open Analyser.Annotation
 open Jasmin
 
 type self = {errors: Error.CompileError.compile_error list}
 
-module PartialDeadCodeVisitor : PartialVisitor with type data = self and type annotation = Sv.t =
-struct
+module PartialDeadCodeVisitor :
+  PartialVisitor with type data = self and type annotation = Sv.t annotation = struct
   type data = self
 
-  type annotation = Sv.t
+  type annotation = Sv.t Analyser.Annotation.annotation
+
+  let unwrap annotation =
+      match annotation with
+      | Annotation d -> d
+      | Empty -> Sv.empty
 
   let visit_copn
       (loc : L.i_loc)
@@ -24,7 +30,7 @@ struct
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var (unwrap annot) with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -45,7 +51,7 @@ struct
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var (unwrap annot) with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -65,7 +71,7 @@ struct
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var (unwrap annot) with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -85,7 +91,7 @@ struct
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var (unwrap annot) with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -149,7 +155,7 @@ struct
       List.fold_left (fun acc f -> visit_function visit_instr f acc) data funcs
 end
 
-module DeadCodeVisitor : Visitor.S with type data = self and type annotation = Sv.t =
+module DeadCodeVisitor : Visitor.S with type data = self and type annotation = Sv.t annotation =
   Visitor.Make (PartialDeadCodeVisitor)
 
 let initial_state : self = {errors= []}
@@ -158,7 +164,7 @@ let dc_prog ((globs, funcs) : ('info, 'asm) prog) =
     let funcs =
         List.map
           (fun f ->
-            let f = LivenessAnalyser.analyse_function f LivenessDomain.empty in
+            let f = LivenessAnalyser.analyse_function f in
             f )
           funcs
     in

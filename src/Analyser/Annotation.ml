@@ -8,6 +8,13 @@ let merge_annotations (a1 : 'domain annotation) (a2 : 'domain annotation) merge_
     | _, Empty -> a1
     | Annotation d1, Annotation d2 -> Annotation (merge_domain d1 d2)
 
+(* return true if d1 is included in d2, false otherwise*)
+let included_annotation inclusion (d1 : 'domain annotation) (d2 : 'domain annotation) =
+    match (d1, d2) with
+    | Empty, _ -> true
+    | _, Empty -> false
+    | Annotation d1, Annotation d2 -> inclusion d1 d2
+
 let pp_annotation
     (pp_domain : Format.formatter -> Jasmin.Location.i_loc * 'domain -> unit)
     fmt
