@@ -29,9 +29,9 @@ struct
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
                   err :: acc )
-            lvs_vars []
+            lvs_vars data.errors
       in
-      {errors= errors @ data.errors}
+      {errors}
 
   let visit_assign
       (loc : L.i_loc)
@@ -50,9 +50,9 @@ struct
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
                   err :: acc )
-            lvs_vars []
+            lvs_vars data.errors
       in
-      {errors= errors @ data.errors}
+      {errors}
 
   let visit_syscall
       (loc : Location.i_loc)
@@ -70,9 +70,9 @@ struct
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
                   err :: acc )
-            lvs_vars []
+            lvs_vars data.errors
       in
-      {errors= errors @ data.errors}
+      {errors}
 
   let visit_funcall
       (loc : Location.i_loc)
@@ -90,9 +90,9 @@ struct
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
                   err :: acc )
-            lvs_vars []
+            lvs_vars data.errors
       in
-      {errors= errors @ data.errors}
+      {errors}
 
   let rec visit_if
       (visit_instr : (annotation, 'asm) Prog.instr -> data -> data)
@@ -103,8 +103,7 @@ struct
       (el : (annotation, 'asm) Prog.stmt)
       (data : data) : data =
       let data_th = visit_stmt visit_instr th data in
-      let data_el = visit_stmt visit_instr el data in
-      {errors= data_th.errors @ data_el.errors}
+      visit_stmt visit_instr el data_th
 
   and visit_while
       (visit_instr : (annotation, 'asm) Prog.instr -> data -> data)

@@ -1,11 +1,18 @@
 
 // x is dead here
-fn test() {
+fn test() -> reg u64 {
 
     reg u64 x = 1; 
-
+    reg u64 y;
+    
+    y = 1;
     if (x == 1) {
         x=1;
     }
+    else {
+        y=2;
+    }
+
+    return x;
 
 }

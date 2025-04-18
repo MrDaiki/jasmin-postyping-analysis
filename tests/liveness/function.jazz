@@ -1,0 +1,15 @@
+
+
+fn f(reg u64 x) -> reg u64 {
+    return x;
+}
+
+export fn test () {
+    reg u64 x; 
+    reg u64 y; 
+
+    x = 1;
+
+    y = f(x);
+
+}

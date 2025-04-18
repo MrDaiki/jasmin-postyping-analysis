@@ -157,7 +157,6 @@ module BackwardAnalyser = struct
         Invariant : L.included out_domain cond_out_domain
         *)
         let domain = L.account cond out_domain L.empty in
-        (* Incrementing loop counter (proxy_var (+|-)= 1) *)
         let rec loop (cond_out_domain : annotation) =
             let b1, domain_b1 = analyse_stmt b1 cond_out_domain in
             let b2, domain_b2 = analyse_stmt b2 domain_b1 in

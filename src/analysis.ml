@@ -84,7 +84,7 @@ let run configuration =
         else
           List.iter
             (fun (module Err : Error.CompileError.CompileError) ->
-              Format.eprintf "%a: %a@." Location.pp_loc Err.location Err.to_text () )
+              Format.eprintf "%a: %a\n" Location.pp_loc Err.location Err.to_text () )
             err
 
 let filepath_arg =
