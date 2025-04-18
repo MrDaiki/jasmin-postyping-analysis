@@ -1,0 +1,9 @@
+
+export fn test() {
+    inline int x; 
+    reg u64 y;
+    for x = 0 to 10 {
+        y = x + 1;
+    }
+
+}
