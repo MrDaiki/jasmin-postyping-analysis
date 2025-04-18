@@ -1,7 +1,9 @@
 
 
-// should we consider that x paramater is dead (since function do not modify it) ?
+
+
 fn f(reg u64 x) -> reg u64 {
+    [x] = 1;
     return x;
 }
 

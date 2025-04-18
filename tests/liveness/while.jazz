@@ -1,11 +1,11 @@
 export fn dead_while() {
 
-    reg u64 y;
+    reg u64 y = 1;
 
     inline int x = 1;
 
     while (x < 10) {
-        while (x < 1) {
+        while (y < 1) {
             y = 2;
         }
         x -= 1;
