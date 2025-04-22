@@ -10,7 +10,7 @@ module type ForwardAnalyserLogic = sig
   (** Function that take input and output domain and convert them to annotation type*)
 
   (** Pretty printing function*)
-  val pp_annot : Format.formatter -> Location.i_loc * domain annotation -> unit
+  val pp_annot : Format.formatter -> Location.i_loc * domain -> unit
 
   (** Incusion test 
   Check if an annotation is included in another one. 
@@ -54,28 +54,22 @@ module type ForwardAnalyserLogic = sig
   *)
   val forget : domain -> var_i -> domain annotation
 
-  val funcall :
-    Location.i_loc -> lvals -> funname -> exprs -> domain annotation -> domain annotation
+  val funcall : Location.i_loc -> lvals -> funname -> exprs -> domain -> domain annotation
 
   val syscall :
        Location.i_loc
     -> lvals
     -> BinNums.positive Syscall_t.syscall_t
     -> exprs
-    -> domain annotation
+    -> domain
     -> domain annotation
 
-  val assign :
-    Location.i_loc -> lval -> E.assgn_tag -> ty -> expr -> domain annotation -> domain annotation
+  val assign : Location.i_loc -> lval -> E.assgn_tag -> ty -> expr -> domain -> domain annotation
 
   val opn :
-       Location.i_loc
-    -> lvals
-    -> E.assgn_tag
-    -> 'asm Sopn.sopn
-    -> exprs
-    -> domain annotation
-    -> domain annotation
+    Location.i_loc -> lvals -> E.assgn_tag -> 'asm Sopn.sopn -> exprs -> domain -> domain annotation
+
+  val initial_domain : ('info, 'asm) func -> domain annotation
 end
 
 module ForwardAnalyser = struct
@@ -92,8 +86,7 @@ module ForwardAnalyser = struct
     returns :
     - Prog.func (annotated function)
     *)
-    val analyse_function :
-      ('info, 'asm) Prog.func -> domain annotation -> (domain annotation, 'asm) Prog.func
+    val analyse_function : ('info, 'asm) Prog.func -> (domain annotation, 'asm) Prog.func
   end
 
   (** Functor used to build TreeAnalyser modules*)
@@ -234,8 +227,8 @@ module ForwardAnalyser = struct
         let out_annotation, stmt = List.fold_left_map analyse_instr in_annotation stmt in
         (stmt, out_annotation)
 
-    let analyse_function (func : ('info, 'asm) Prog.func) (in_annotation : annot) :
-        (annot, 'asm) Prog.func =
+    let analyse_function (func : ('info, 'asm) Prog.func) : (annot, 'asm) Prog.func =
+        let in_annotation = Logic.initial_domain func in
         let body, out_annotation = analyse_stmt func.f_body in_annotation in
         {func with f_info= out_annotation; f_body= body}
   end

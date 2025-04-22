@@ -10,7 +10,7 @@ module type BackwardAnalyserLogic = sig
   (** Function that take input and output domain and convert them to annotation type*)
 
   (** Pretty printing function*)
-  val pp_annot : Format.formatter -> Location.i_loc * domain annotation -> unit
+  val pp_annot : Format.formatter -> Location.i_loc * domain -> unit
 
   (** Incusion test
      Check if an annotation is included in another one.
@@ -40,15 +40,14 @@ module type BackwardAnalyserLogic = sig
      *)
   val forget : int gvar_i -> domain -> domain
 
-  val funcall :
-    Location.i_loc -> int glvals -> funname -> int gexprs -> domain annotation -> domain annotation
+  val funcall : Location.i_loc -> int glvals -> funname -> int gexprs -> domain -> domain annotation
 
   val syscall :
        Location.i_loc
     -> int glvals
     -> BinNums.positive Syscall_t.syscall_t
     -> int gexprs
-    -> domain annotation
+    -> domain
     -> domain annotation
 
   val assign :
@@ -57,7 +56,7 @@ module type BackwardAnalyserLogic = sig
     -> E.assgn_tag
     -> int gty
     -> int gexpr
-    -> domain annotation
+    -> domain
     -> domain annotation
 
   val opn :
@@ -66,8 +65,10 @@ module type BackwardAnalyserLogic = sig
     -> E.assgn_tag
     -> 'asm Sopn.sopn
     -> int gexprs
+    -> domain
     -> domain annotation
-    -> domain annotation
+
+  val initial_domain : ('info, 'asm) func -> domain annotation
 end
 
 module BackwardAnalyser = struct
@@ -169,7 +170,7 @@ module BackwardAnalyser = struct
         (*
         Invariant : L.included out_domain cond_out_domain
         *)
-        let domain = Logic.account cond Empty out_domain in
+        let cond_in_domain = Logic.account cond Empty out_domain in
         (* Incrementing loop counter (proxy_var (+|-)= 1) *)
         let rec loop (cond_out_domain : domain annotation) =
             let b1, domain_b1 = analyse_stmt b1 cond_out_domain in
@@ -180,7 +181,7 @@ module BackwardAnalyser = struct
             else
               loop domain
         in
-        loop domain
+        loop cond_in_domain
 
     and analyse_instr_r
         (loc : Location.i_loc)
@@ -190,10 +191,10 @@ module BackwardAnalyser = struct
         match instr with
         | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr out_annotation
         | Copn (lvs, tag, sopn, es) ->
-            let domain = Logic.opn loc lvs tag sopn es out_annotation in
+            let domain = bind_annotation out_annotation (Logic.opn loc lvs tag sopn es) in
             (Copn (lvs, tag, sopn, es), domain)
         | Ccall (lvs, fn, es) ->
-            let domain = Logic.funcall loc lvs fn es out_annotation in
+            let domain = bind_annotation out_annotation (Logic.funcall loc lvs fn es) in
             (Ccall (lvs, fn, es), domain)
         | Csyscall (lvs, sc, es) ->
             let domain = Logic.syscall loc lvs sc es out_annotation in
@@ -222,7 +223,7 @@ module BackwardAnalyser = struct
         (stmt, out_domain)
 
     let analyse_function (func : ('info, 'asm) Prog.func) : (domain annotation, 'asm) Prog.func =
-        let out_annotation = Empty in
+        let out_annotation = Logic.initial_domain func in
         let body, in_annotation = analyse_stmt func.f_body out_annotation in
         { f_loc= func.f_loc
         ; f_annot= func.f_annot

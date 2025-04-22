@@ -23,7 +23,7 @@ let pp_annotation
     | Empty -> Format.fprintf fmt "{}"
     | Annotation d -> pp_domain fmt (loc, d)
 
-let forward (func : 'domain -> 'domain annotation) (annotation : 'domain annotation) =
+let bind_annotation (annotation : 'domain annotation) (func : 'domain -> 'domain annotation) =
     match annotation with
     | Empty -> Empty
     | Annotation d -> func d
