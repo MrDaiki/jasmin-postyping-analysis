@@ -1,13 +1,16 @@
 open Jasmin
 open Prog
 open Types
+open Annotation
 
 module type BackwardAnalyserLogic = sig
   (** type of annotation for the program*)
-  type annotation
+  type domain
 
   (** Pretty printing function*)
-  val pp_annot : Format.formatter -> Location.i_loc * annotation -> unit
+  val pp : Format.formatter -> Location.i_loc * domain -> unit
+
+  val initialize : ('info, 'asm) Prog.func -> domain annotation
 
   (** Incusion test
      Check if an annotation is included in another one.
@@ -22,35 +25,38 @@ module type BackwardAnalyserLogic = sig
     Inclusion : for all A1, A2 , (included A1 A2) => for all s , (s in I(A2) => s in I(A1)) 
   *)
 
-  val empty : annotation
-
-  val included : annotation -> annotation -> bool
+  val included : domain -> domain -> bool
 
   (**
-  
     Account : for all A1, A2, e, s , s in I(account e A1 A2) => if [e]s then s in I(A1) else s in I(A2)
     eq : for all A1, A2, e, s , s in I(account e A1 A2) => s in I(if [e]s then A1 else A2)
   *)
-  val account : int gexpr -> annotation -> annotation -> annotation
+  val account : int gexpr -> domain annotation -> domain annotation -> domain annotation
 
   (** Function that remove a proxy variable from the annotation if necessary
        Some part of the tree walking will introduce proxy variables to handle some specific cases.
        This function is called to remove them from the annotation when they are not needed anymore
      *)
-  val forget : int gvar_i -> annotation -> annotation
+  val forget : int gvar_i -> domain -> domain annotation
 
-  val funcall : Location.i_loc -> int glvals -> funname -> int gexprs -> annotation -> annotation
+  val funcall : Location.i_loc -> int glvals -> funname -> int gexprs -> domain -> domain annotation
 
   val syscall :
        Location.i_loc
     -> int glvals
     -> BinNums.positive Syscall_t.syscall_t
     -> int gexprs
-    -> annotation
-    -> annotation
+    -> domain
+    -> domain annotation
 
   val assign :
-    Location.i_loc -> int glval -> E.assgn_tag -> int gty -> int gexpr -> annotation -> annotation
+       Location.i_loc
+    -> int glval
+    -> E.assgn_tag
+    -> int gty
+    -> int gexpr
+    -> domain
+    -> domain annotation
 
   val opn :
        Location.i_loc
@@ -58,16 +64,14 @@ module type BackwardAnalyserLogic = sig
     -> E.assgn_tag
     -> 'asm Sopn.sopn
     -> int gexprs
-    -> annotation
-    -> annotation
-
-  val initialize : ('info, 'asm) func -> annotation
+    -> domain
+    -> domain annotation
 end
 
 module BackwardAnalyser = struct
   module type S = sig
     (** anotation type*)
-    type annotation
+    type domain
 
     (**
        Entrypoint for analysis. Using domain, the domain for the previous instruction is computed. Annotation are then generated using `AnalyserLogic.to_annotation` function
@@ -80,7 +84,7 @@ module BackwardAnalyser = struct
        - Prog.func (annotated function)
        - annotation (out annotation)
     *)
-    val analyse_function : ('info, 'asm) Prog.func -> (annotation, 'asm) Prog.func
+    val analyse_function : ('info, 'asm) Prog.func -> (domain annotation, 'asm) Prog.func
   end
 
   (** Functor used to build TreeAnalyser modules*)
@@ -88,11 +92,20 @@ module BackwardAnalyser = struct
       (L : BackwardAnalyserLogic)
   (*: S with type annotation = L.annotation and type domain = L.domain  *) =
   struct
-    type annotation = L.annotation
+    type domain = L.domain
 
-    let analyse_assign (loc : Location.i_loc) (lv : int glval) tag ty (expr : int gexpr) domain =
-        let domain = L.assign loc lv tag ty expr domain in
-        (Cassgn (lv, tag, ty, expr), domain)
+    (** type of the annotation*)
+    type annot = L.domain annotation
+
+    let analyse_assign
+        (loc : Location.i_loc)
+        (lv : int glval)
+        tag
+        ty
+        (expr : int gexpr)
+        (annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
+        let annotation = bind_annotation annotation (L.assign loc lv tag ty expr) in
+        (Cassgn (lv, tag, ty, expr), annotation)
 
     let build_for_proxy_variable loc (x : int gvar_i) : var_i =
         Location.mk_loc loc (GV.clone (Location.unloc x))
@@ -113,38 +126,38 @@ module BackwardAnalyser = struct
         variable
         (range : int grange)
         (body : ('info, 'asm) stmt)
-        out_domain : (int, annotation, 'asm) ginstr_r * annotation =
+        (out_annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
         let proxy_var = build_for_proxy_variable loc.base_loc variable in
         let condition = build_for_condition_expr proxy_var range in
-        let rec loop in_domain =
-            let _, domain =
+        let rec loop out_annotation =
+            let _, annotation =
                 (* Incrementing loop counter (proxy_var (+|-)= 1) *)
                 analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
                   (build_for_assign_expr proxy_var range)
-                  in_domain
+                  out_annotation
             in
-            let body, domain = analyse_stmt body domain in
+            let body, annotation = analyse_stmt body annotation in
             let _, domain =
                 (* Assigning proxy_var to for variable*)
                 analyse_assign loc (Lvar variable) AT_none (Location.unloc variable).v_ty
                   (Pvar {gv= proxy_var; gs= Slocal})
-                  domain
+                  annotation
             in
-            let domain = L.account condition domain in_domain in
+            let domain = L.account condition domain out_annotation in
             (* Check if the loop is finished *)
-            if L.included domain in_domain then
+            if included_annotation domain out_annotation L.included then
               (Cfor (variable, range, body), domain)
             else
               loop domain
         in
-        let body, domain = loop out_domain in
-        let _, domain =
+        let body, in_annotation = loop out_annotation in
+        let _, in_annotation =
             (* Assigning proxy_var to range beginning*)
             analyse_assign loc (Lvar proxy_var) AT_none (Location.unloc variable).v_ty
-              (Grange.first range) domain
+              (Grange.first range) in_annotation
         in
-        let domain = L.forget proxy_var domain in
-        (body, domain)
+        let in_annotation = bind_annotation in_annotation (L.forget proxy_var) in
+        (body, in_annotation)
 
     and analyse_while
         (al : E.align)
@@ -152,74 +165,65 @@ module BackwardAnalyser = struct
         ((a, _) : IInfo.t * 'info)
         (b1 : (int, 'info, 'asm) gstmt)
         (b2 : (int, 'info, 'asm) gstmt)
-        (out_domain : annotation) =
+        (out_annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
         (*
         Invariant : L.included out_domain cond_out_domain
         *)
-        let domain = L.account cond out_domain L.empty in
-        let rec loop (cond_out_domain : annotation) =
-            let b1, domain_b1 = analyse_stmt b1 cond_out_domain in
-            let b2, domain_b2 = analyse_stmt b2 domain_b1 in
-            let domain = L.account cond domain_b2 cond_out_domain in
-            if L.included domain cond_out_domain then
-              (Cwhile (al, b1, cond, (a, domain), b2), domain_b1)
+        let domain = L.account cond out_annotation Empty in
+        let rec loop (cond_out_annotation : annot) =
+            let b1, annotation_b1 = analyse_stmt b1 cond_out_annotation in
+            let b2, annotation_b2 = analyse_stmt b2 annotation_b1 in
+            let annotation = L.account cond annotation_b2 cond_out_annotation in
+            if included_annotation annotation cond_out_annotation L.included then
+              (Cwhile (al, b1, cond, (a, domain), b2), annotation_b1)
             else
-              loop domain
+              loop annotation
         in
         loop domain
 
     and analyse_instr_r
         (loc : Location.i_loc)
         (instr : (int, 'info, 'asm) ginstr_r)
-        (domain : annotation) : (int, annotation, 'asm) ginstr_r * annotation =
+        (annotation : annot) : (int, annot, 'asm) ginstr_r * annot =
         match instr with
-        | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr domain
+        | Cassgn (lv, tag, ty, expr) -> analyse_assign loc lv tag ty expr annotation
         | Copn (lvs, tag, sopn, es) ->
-            let domain = L.opn loc lvs tag sopn es domain in
-            (Copn (lvs, tag, sopn, es), domain)
+            let annotation = bind_annotation annotation (L.opn loc lvs tag sopn es) in
+            (Copn (lvs, tag, sopn, es), annotation)
         | Ccall (lvs, fn, es) ->
-            let domain = L.funcall loc lvs fn es domain in
-            (Ccall (lvs, fn, es), domain)
+            let annotation = bind_annotation annotation (L.funcall loc lvs fn es) in
+            (Ccall (lvs, fn, es), annotation)
         | Csyscall (lvs, sc, es) ->
-            let domain = L.syscall loc lvs sc es domain in
-            (Csyscall (lvs, sc, es), domain)
+            let annotation = bind_annotation annotation (L.syscall loc lvs sc es) in
+            (Csyscall (lvs, sc, es), annotation)
         | Cif (cond, th, el) ->
-            let th, domain_th = analyse_stmt th domain in
-            let el, domain_el = analyse_stmt el domain in
-            (Cif (cond, th, el), L.account cond domain_th domain_el)
-        | Cfor (var, range, bloc) -> analyse_for loc var range bloc domain
-        | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 domain
+            let th, annotation_th = analyse_stmt th annotation in
+            let el, annotation_el = analyse_stmt el annotation in
+            (Cif (cond, th, el), L.account cond annotation_th annotation_el)
+        | Cfor (var, range, bloc) -> analyse_for loc var range bloc annotation
+        | Cwhile (align, b1, cond, info, b2) -> analyse_while align cond info b1 b2 annotation
 
-    and analyse_instr (in_domain : annotation) (instr : ('info, 'asm) instr) :
-        annotation * (annotation, 'asm) instr =
-        let instr_r, out_domain = analyse_instr_r instr.i_loc instr.i_desc in_domain in
-        ( out_domain
-        , {i_desc= instr_r; i_loc= instr.i_loc; i_info= in_domain; i_annot= instr.i_annot} )
+    and analyse_instr (out_annotation : annot) (instr : ('info, 'asm) instr) :
+        (annot, 'asm) instr * annot =
+        let instr_r, in_annotation = analyse_instr_r instr.i_loc instr.i_desc out_annotation in
+        ( {i_desc= instr_r; i_loc= instr.i_loc; i_info= in_annotation; i_annot= instr.i_annot}
+        , in_annotation )
 
-    and analyse_stmt (stmt : ('info, 'asm) stmt) domain =
-        let out_domain, stmt =
+    and analyse_stmt (stmt : ('info, 'asm) stmt) (out_annotation : annot) :
+        (annot, 'asm) stmt * annot =
+        let stmt, in_annotation =
             List.fold_right
-              (fun instr (back_domain, acc) ->
-                let out_domain, instr = analyse_instr back_domain instr in
-                (out_domain, instr :: acc) )
-              stmt (domain, [])
+              (fun instr (acc, out_annotation) ->
+                let instr, in_annotation = analyse_instr out_annotation instr in
+                (instr :: acc, in_annotation) )
+              stmt ([], out_annotation)
         in
-        (stmt, out_domain)
+        (stmt, in_annotation)
 
-    let analyse_function (func : ('info, 'asm) Prog.func) : (annotation, 'asm) Prog.func =
-        let in_domain = L.initialize func in
+    let analyse_function (func : ('info, 'asm) Prog.func) : (annot, 'asm) Prog.func =
+        let out_annotation = L.initialize func in
         (* The function is analysed in the context of the initial domain *)
-        let body, out_domain = analyse_stmt func.f_body in_domain in
-        { f_loc= func.f_loc
-        ; f_annot= func.f_annot
-        ; f_cc= func.f_cc
-        ; f_info= out_domain
-        ; f_name= func.f_name
-        ; f_tyin= func.f_tyin
-        ; f_args= func.f_args
-        ; f_body= body
-        ; f_tyout= func.f_tyout
-        ; f_outannot= func.f_outannot
-        ; f_ret= func.f_ret }
+        let body, out_domain = analyse_stmt func.f_body out_annotation in
+        {func with f_info= out_domain; f_body= body}
   end
 end

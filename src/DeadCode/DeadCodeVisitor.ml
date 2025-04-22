@@ -2,15 +2,17 @@ open Jasmin.Prog
 open Visitor.ProgramVisitor
 open DeadCodeError
 open Liveness.LivenessAnalyser
+open Analyser.Annotation
 open Jasmin
 
 type self = {errors: Error.CompileError.compile_error list}
 
-module PartialDeadCodeVisitor : PartialVisitor with type data = self and type annotation = Sv.t =
+module PartialDeadCodeVisitor :
+  PartialVisitor with type data = self and type annotation = Sv.t Analyser.Annotation.annotation =
 struct
   type data = self
 
-  type annotation = Sv.t
+  type annotation = Sv.t Analyser.Annotation.annotation
 
   let visit_copn
       (loc : L.i_loc)
@@ -20,11 +22,12 @@ struct
       (_ : 'asm Sopn.sopn)
       (_ : exprs)
       (data : data) : data =
+      let domain = unwrap_annotation annot in
       let lvs_vars = List.fold_left (fun s lv -> Jasmin.Prog.vars_lv s lv) Sv.empty lvs in
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var domain with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -41,11 +44,12 @@ struct
       (_ : ty)
       (_ : expr)
       (data : data) : data =
+      let domain = unwrap_annotation annot in
       let lvs_vars = Jasmin.Prog.vars_lv Sv.empty lv in
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var domain with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -61,11 +65,12 @@ struct
       (_ : BinNums.positive Syscall_t.syscall_t)
       (_ : exprs)
       (data : data) : data =
+      let domain = unwrap_annotation annot in
       let lvs_vars = List.fold_left (fun s lv -> Jasmin.Prog.vars_lv s lv) Sv.empty lvs in
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var domain with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -81,11 +86,12 @@ struct
       (_ : funname)
       (_ : exprs)
       (data : data) : data =
+      let domain = unwrap_annotation annot in
       let lvs_vars = List.fold_left (fun s lv -> Jasmin.Prog.vars_lv s lv) Sv.empty lvs in
       let errors =
           Sv.fold
             (fun var acc ->
-              match Sv.find_opt var annot with
+              match Sv.find_opt var domain with
               | Some _ -> acc
               | _ ->
                   let err = create_dead_code_error var loc.base_loc in
@@ -148,12 +154,13 @@ struct
       List.fold_left (fun acc f -> visit_function visit_instr f acc) data funcs
 end
 
-module DeadCodeVisitor : Visitor.S with type data = self and type annotation = Sv.t =
+module DeadCodeVisitor : Visitor.S with type data = self and type annotation = Sv.t annotation =
   Visitor.Make (PartialDeadCodeVisitor)
 
 let initial_state : self = {errors= []}
 
-let dc_prog ((globs, funcs) : ('info, 'asm) prog) =
+let dc_prog ((globs, funcs) : ('info, 'asm) prog) :
+    (Sv.t annotation, 'asm) prog * Error.CompileError.compile_error list =
     let funcs =
         List.map
           (fun f ->

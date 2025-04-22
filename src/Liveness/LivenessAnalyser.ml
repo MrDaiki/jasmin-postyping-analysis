@@ -1,6 +1,7 @@
 open Jasmin
 open Prog
 open Analyser.BackwardAnalyser
+open Analyser.Annotation
 
 (**
 Liveness analysis should compile living variable for each program point
@@ -29,31 +30,36 @@ let live_assigns domain lvs exprs =
     let domain = lvs_dep domain lvs in
     Sv.union domain (Prog.vars_es exprs)
 
-module LivenessDomain : BackwardAnalyserLogic with type annotation = Sv.t = struct
-  type annotation = Sv.t
+module LivenessDomain : BackwardAnalyserLogic with type domain = Sv.t = struct
+  type domain = Sv.t
 
-  let empty = Sv.empty
+  let initialize fd = Annotation (Sv.of_list (List.map L.unloc fd.f_ret))
 
-  let pp_annot (fmt : Format.formatter) ((_, domain) : L.i_loc * annotation) = pp_sv fmt domain
+  let pp (fmt : Format.formatter) ((_, domain) : L.i_loc * domain) = pp_sv fmt domain
 
   let included a b = Sv.subset a b
 
-  let account expr d1 d2 = Sv.union (Prog.vars_e expr) (Sv.union d1 d2)
+  let account (expr : expr) (d1 : domain annotation) (d2 : domain annotation) =
+      match (d1, d2) with
+      | Empty, _ -> d1
+      | _, Empty -> d2
+      | Annotation d1, Annotation d2 -> Annotation (Sv.union (Prog.vars_e expr) (Sv.union d1 d2))
 
-  let forget var domain =
+  let forget (var : var_i) (domain : domain) =
       assert (not (Sv.mem (L.unloc var) domain)) ;
-      domain
+      let domain = Sv.remove (L.unloc var) domain in
+      Annotation domain
 
-  let funcall (_ : Location.i_loc) (lvs : lvals) (_ : funname) (exprs : exprs) domain =
-      live_assigns domain lvs exprs
+  let funcall (_ : Location.i_loc) (lvs : lvals) (_ : funname) (exprs : exprs) (domain : domain) =
+      Annotation (live_assigns domain lvs exprs)
 
   let syscall
       (_ : Location.i_loc)
       (lvs : lvals)
       (_ : BinNums.positive Syscall_t.syscall_t)
       (exprs : exprs)
-      domain =
-      live_assigns domain lvs exprs
+      (domain : domain) =
+      Annotation (live_assigns domain lvs exprs)
 
   let assign
       (_ : Location.i_loc)
@@ -61,8 +67,8 @@ module LivenessDomain : BackwardAnalyserLogic with type annotation = Sv.t = stru
       (_ : E.assgn_tag)
       (_ : ty)
       (expr : expr)
-      (domain : annotation) =
-      live_assigns domain [lv] [expr]
+      (domain : domain) =
+      Annotation (live_assigns domain [lv] [expr])
 
   let opn
       (_ : Location.i_loc)
@@ -70,11 +76,9 @@ module LivenessDomain : BackwardAnalyserLogic with type annotation = Sv.t = stru
       (_ : E.assgn_tag)
       (_ : 'asm Sopn.sopn)
       (exprs : exprs)
-      domain =
-      live_assigns domain lvs exprs
-
-  let initialize fd = Sv.of_list (List.map L.unloc fd.f_ret)
+      (domain : domain) =
+      Annotation (live_assigns domain lvs exprs)
 end
 
-module LivenessAnalyser : BackwardAnalyser.S with type annotation = Sv.t =
+module LivenessAnalyser : BackwardAnalyser.S with type domain = Sv.t =
   BackwardAnalyser.Make (LivenessDomain)

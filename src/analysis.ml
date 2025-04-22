@@ -73,8 +73,9 @@ let run configuration =
     | DeadCode {pinfo; json; prog} ->
         let prog, err = dc_prog prog in
         if pinfo then
-          Printer.pp_iprog ~debug:false LivenessDomain.pp_annot Arch.reg_size Arch.asmOp
-            Format.std_formatter prog ;
+          Printer.pp_iprog ~debug:false
+            (Analyser.Annotation.pp_annotation LivenessDomain.pp)
+            Arch.reg_size Arch.asmOp Format.std_formatter prog ;
         if json then
           let json =
               Error.SerialErrorBuilder.serialize_errors
