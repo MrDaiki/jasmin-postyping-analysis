@@ -4,6 +4,7 @@ open Rd
 open Types
 open InitVarError
 open Error.CompileError
+open Analyser.Annotation
 
 (**
 Check mode for initialised variable analysis 
@@ -86,9 +87,9 @@ let check_iv_error (data : iv_data) (domain : Domain.t) (var : var_i) : iv_data 
 
 module InitVarCheckerLogic :
   Visitor.ExpressionChecker.ExpressionCheckerLogic
-    with type domain = Domain.t
+    with type domain = Domain.t annotation
      and type self = iv_data = struct
-  type domain = Domain.t
+  type domain = Domain.t annotation
 
   type self = iv_data
 
@@ -108,16 +109,16 @@ module InitVarCheckerLogic :
       | Pconst _ -> self
       | Pbool _ -> self
       | Parr_init _ -> self
-      | Pvar var -> check_iv_error self domain var.gv
+      | Pvar var -> check_iv_error self (unwrap_annotation domain) var.gv
       | Pget (_, _, _, var, expr) ->
           let self = check_expr self domain loc expr in
-          check_iv_error self domain var.gv
+          check_iv_error self (unwrap_annotation domain) var.gv
       | Psub (_, _, _, var, expr) ->
           let self = check_expr self domain loc expr in
-          check_iv_error self domain var.gv
+          check_iv_error self (unwrap_annotation domain) var.gv
       | Pload (_, _, var, expr) ->
           let self = check_expr self domain loc expr in
-          check_iv_error self domain var
+          check_iv_error self (unwrap_annotation domain) var
       | Papp1 (_, expr) -> check_expr self domain loc expr
       | Papp2 (_, l, r) -> check_expr (check_expr self domain loc l) domain loc r
       | PappN (_, exprs) -> List.fold_left (fun d e -> check_expr d domain loc e) self exprs
@@ -127,7 +128,7 @@ module InitVarCheckerLogic :
           check_expr self domain loc e3
 
   let check_return_variable (self : self) (domain : domain) (var : Jasmin.Prog.var_i) : self =
-      check_iv_error self domain var
+      check_iv_error self (unwrap_annotation domain) var
 
   (** 
   Check for variable initialisation in left values. It apply initialisation check for expressions in left values (array access, slice, memory access).
@@ -138,5 +139,5 @@ module InitVarCheckerLogic :
     return : iv_data (updated state)
   *)
   let check_lv_variable (self : self) (domain : domain) (var : Jasmin.Prog.var_i) : self =
-      check_iv_error self domain var
+      check_iv_error self (unwrap_annotation domain) var
 end

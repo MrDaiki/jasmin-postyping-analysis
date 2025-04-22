@@ -1,31 +1,36 @@
 module ReachingDefinitionLogic : sig
-  type annotation = Domain.t
+  type domain = Rd.Domain.t
 
-  val pp_annot : Format.formatter -> Jasmin.Location.i_loc * annotation -> unit
+  val initialize : ('info, 'asm) Jasmin.Prog.func -> domain Analyser.Annotation.annotation
 
-  val included : annotation -> annotation -> bool
+  val pp : Format.formatter -> Jasmin.Location.i_loc * domain -> unit
 
-  val assume : Jasmin.Prog.expr -> annotation -> annotation * annotation
+  val included : domain -> domain -> bool
 
-  val merge : annotation -> annotation -> annotation
+  val assume :
+       Jasmin.Prog.expr
+    -> domain Analyser.Annotation.annotation
+    -> domain Analyser.Annotation.annotation * domain Analyser.Annotation.annotation
 
-  val forget : Jasmin.Prog.var_i -> annotation -> annotation
+  val merge : domain -> domain -> domain
+
+  val forget : Jasmin.Prog.var_i -> domain -> domain Analyser.Annotation.annotation
 
   val funcall :
        Jasmin.Location.i_loc
     -> Jasmin.Prog.lvals
     -> Jasmin.CoreIdent.funname
     -> Jasmin.Prog.exprs
-    -> annotation
-    -> annotation
+    -> domain
+    -> domain Analyser.Annotation.annotation
 
   val syscall :
        Jasmin.Location.i_loc
     -> Jasmin.Prog.lvals
     -> Jasmin.BinNums.positive Jasmin.Syscall_t.syscall_t
     -> Jasmin.Prog.exprs
-    -> annotation
-    -> annotation
+    -> domain
+    -> domain Analyser.Annotation.annotation
 
   val assign :
        Jasmin.Location.i_loc
@@ -33,8 +38,8 @@ module ReachingDefinitionLogic : sig
     -> Jasmin.Expr.assgn_tag
     -> Jasmin.Prog.ty
     -> Jasmin.Prog.expr
-    -> annotation
-    -> annotation
+    -> domain
+    -> domain Analyser.Annotation.annotation
 
   val opn :
        Jasmin.Location.i_loc
@@ -42,13 +47,13 @@ module ReachingDefinitionLogic : sig
     -> Jasmin.Expr.assgn_tag
     -> 'asm Jasmin.Sopn.sopn
     -> Jasmin.Prog.exprs
-    -> annotation
-    -> annotation
+    -> domain
+    -> domain Analyser.Annotation.annotation
 end
 
 module ReachingDefinitionAnalyser : sig
-  type annotation = ReachingDefinitionLogic.annotation
+  type domain = ReachingDefinitionLogic.domain
 
   val analyse_function :
-    ('info, 'asm) Jasmin.Prog.func -> annotation -> (annotation, 'asm) Jasmin.Prog.func
+    ('info, 'asm) Jasmin.Prog.func -> (domain Analyser.Annotation.annotation, 'asm) Jasmin.Prog.func
 end

@@ -5,7 +5,9 @@ open ExpressionChecker
 open Checker
 
 module InitVarVisitor :
-  ProgramVisitor.Visitor.S with type data = iv_data and type annotation = Rd.Domain.t =
+  ProgramVisitor.Visitor.S
+    with type data = iv_data
+     and type annotation = Rd.Domain.t Analyser.Annotation.annotation =
   ExpressionChecker.Make (InitVarCheckerLogic)
 
 let initial_state : iv_data = {mode= NotStrict; errors= []}
@@ -14,10 +16,7 @@ let iv_prog ((globs, funcs) : ('info, 'asm) prog) (mode : check_mode) =
     let funcs =
         List.map
           (fun f ->
-            let f =
-                Rd.RdAnalyser.ReachingDefinitionAnalyser.analyse_function f
-                  (Rd.Domain.from_function_start f)
-            in
+            let f = Rd.RdAnalyser.ReachingDefinitionAnalyser.analyse_function f in
             f )
           funcs
     in

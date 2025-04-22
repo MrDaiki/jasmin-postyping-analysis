@@ -57,8 +57,9 @@ let run configuration =
     | InitVar {strict; pinfo; json; prog} ->
         let prog, err = InitVars.Check.iv_prog prog strict in
         if pinfo then
-          Printer.pp_iprog ~debug:false Rd.RdAnalyser.ReachingDefinitionLogic.pp_annot Arch.reg_size
-            Arch.asmOp Format.std_formatter prog ;
+          Printer.pp_iprog ~debug:false
+            (Analyser.Annotation.pp_annotation Rd.RdAnalyser.ReachingDefinitionLogic.pp)
+            Arch.reg_size Arch.asmOp Format.std_formatter prog ;
         if json then
           let json =
               Error.SerialErrorBuilder.serialize_errors
